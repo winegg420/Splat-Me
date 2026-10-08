@@ -1,0 +1,40 @@
+{
+  "name": "splat-me",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "prepare": "node scripts/prepare.mjs",
+    "dev": "npm run prepare && vite --host 127.0.0.1",
+    "build": "npm run prepare && tsc && vite build",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/winegg420/Splat-Me.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/winegg420/Splat-Me/issues"
+  },
+  "homepage": "https://github.com/winegg420/Splat-Me#readme",
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^1.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.3"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}
