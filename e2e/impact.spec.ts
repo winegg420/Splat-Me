@@ -1,4 +1,5 @@
 import { test,expect } from '@playwright/test';
+import { writeFile } from 'node:fs/promises';
 test('GPU model, splat, audio scheduling, actual slow replay and near miss',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
@@ -29,9 +30,11 @@ test('GPU model, splat, audio scheduling, actual slow replay and near miss',asyn
   await page.screenshot({path:'test-results/impact-metrics.png',fullPage:true});
   const metrics=await page.evaluate(()=>(window as any).__impactDiagnostics);
   await test.info().attach('software-gpu-measurement',{body:JSON.stringify(metrics,null,2),contentType:'application/json'});
+  await writeFile('test-results/impact-measurements.json',JSON.stringify(metrics,null,2));
   expect(errors).toEqual([]);
 });
 test('real video pixels are warped and deposits follow simulated moving landmarks',async({page})=>{
+  await page.setViewportSize({width:700,height:900});
   // Controlled landmarks isolate rendering/collision from detector accuracy. Camera remains a real synthetic MediaStream.
   await page.route('**/tracker.js',route=>route.fulfill({contentType:'application/javascript',body:`
     let frames=0;onmessage=({data})=>{if(data.type==='init'){postMessage({type:'ready'});return;}
@@ -42,7 +45,7 @@ test('real video pixels are warped and deposits follow simulated moving landmark
     put(117,.4,.53);put(346,.6,.53);put(50,.42,.62);put(280,.58,.62);
     data.bitmap.close();postMessage({type:'result',timestamp:data.timestamp,duration:1,pose:{x:.5+shift,y:.5,size:.16,roll:0},points},[points.buffer]);};` }));
   await page.goto('/impact-lab/');await page.locator('#auto-replay').uncheck();await page.locator('#start').click();
-  await expect(page.locator('#throw')).toBeEnabled();await page.locator('#throw').click();
+  await expect(page.locator('#throw')).toBeEnabled({timeout:20000});await page.locator('#throw').click();
   await page.waitForFunction(()=>(window as any).__impactDiagnostics.effects.warp>.1);
   const before=await page.evaluate(()=>(window as any).__impactDiagnostics.effects.anchors[0][0]);
   await page.screenshot({path:'test-results/impact-camera-warp.png',fullPage:true});
@@ -55,11 +58,33 @@ test('impact camera uses real worker and preserves capture during tracking A/B',
   await page.goto('/impact-lab/');await page.locator('#start').click();
   await expect(page.locator('#status')).toContainText('Yüzünü kadraja al',{timeout:60000});
   await expect.poll(()=>page.evaluate(()=>(window as any).__impactDiagnostics.metrics?.detectionFps??0),{timeout:20000}).toBeGreaterThan(0);
+  const trackingOn=await page.evaluate(()=>(window as any).__impactDiagnostics);
   await page.locator('#tracking-enabled').uncheck();await page.waitForTimeout(2200);
   const m=await page.evaluate(()=>(window as any).__impactDiagnostics.metrics);
+  await writeFile('test-results/capture-ab.json',JSON.stringify({environment:'Linux CI, synthetic camera, SwiftShader; not physical camera performance',trackingOn,trackingOff:m},null,2));
   expect(m.callbackFps).toBeGreaterThan(0);expect(m.submittedFps).toBe(0);
   await expect(page.locator('#throw')).toBeDisabled();
   await page.locator('#stop').click();await expect(page.locator('#face-state')).toHaveText('KAMERA KAPALI');
+});
+test('layered impact audio produces bounded non-silent stereo waveform',async({page})=>{
+  await page.setViewportSize({width:700,height:900});
+  await page.addInitScript(()=>{
+    Object.defineProperty(window,'AudioContext',{value:function(){
+      const ctx=new OfflineAudioContext(2,96000,48000);
+      Object.defineProperty(ctx,'resume',{value:()=>Promise.resolve()});
+      (window as any).offlineAudio=ctx;return ctx;
+    }});
+  });
+  await page.goto('/impact-lab/');await page.locator('#auto-replay').uncheck();await page.locator('.preview-controls summary').click();await page.locator('#demo-hit').click();
+  await page.waitForFunction(()=>(window as any).__impactDiagnostics.outcome==='hit');
+  const sample=await page.evaluate(async()=>{
+    const buffer=await (window as any).offlineAudio.startRendering() as AudioBuffer;
+    const left=buffer.getChannelData(0),right=buffer.getChannelData(1);let peak=0,power=0,difference=0;
+    for(let i=0;i<left.length;i++){peak=Math.max(peak,Math.abs(left[i]),Math.abs(right[i]));power+=left[i]*left[i];difference+=Math.abs(left[i]-right[i]);}
+    return {peak,rms:Math.sqrt(power/left.length),stereoDifference:difference/left.length,sampleRate:buffer.sampleRate,seconds:buffer.duration};
+  });
+  expect(sample.peak).toBeLessThan(1);expect(sample.rms).toBeGreaterThan(.005);expect(sample.stereoDifference).toBeGreaterThan(.001);
+  await writeFile('test-results/audio-measurements.json',JSON.stringify(sample,null,2));
 });
 test('mobile impact layout is usable',async({page})=>{
   await page.setViewportSize({width:390,height:844});await page.goto('/impact-lab/');

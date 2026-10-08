@@ -16,7 +16,7 @@ float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(ha
 vec3 footage(vec2 uv){
  if(live>.5) return texture2D(cameraImage,vec2(1.-clamp(uv.x,.001,.999),clamp(uv.y,.001,.999))).rgb;
  vec2 q=uv-.5;float grid=step(.985,fract(uv.x*28.))+step(.985,fract(uv.y*16.));
- return vec3(.065,.068,.063)+vec3(.038,.048,.033)*(1.-length(q))+grid*.015;
+ return vec3(.008,.010,.007)+vec3(.008,.012,.006)*(1.-length(q))+grid*.003;
 }
 void main(){
  vec2 uv=vUv;
@@ -35,24 +35,25 @@ void main(){
  vec3 color=footage(uv);
  // Organic face-local deposits: landmark anchors, irregular boundaries, hanging rivulets,
  // directional highlights and a dark meniscus. Hidden immediately when tracking is lost.
- for(int i=0;i<5;i++){
+ if(stain>.001){for(int i=0;i<5;i++){
    vec2 d=(vUv-anchors[i])*vec2(aspect,1.)/max(face.w,.035);
    d=mat2(c,-s,s,c)*d;
+   if(abs(d.x)<.55&&abs(d.y)<.75){
    float a=atan(d.y,d.x);
-   float radius=.19+float(i)*.014+.038*sin(a*7.+float(i)*2.)+.025*sin(a*13.);
+   float radius=.20+float(i)*.014+.035*sin(a*3.+float(i)*2.)+.024*sin(a*7.+float(i))+.025*noise(d*18.);
    float body=length(d*vec2(.85,1.15));
    float drip=length(vec2(d.x*3.6,(d.y+.19)*.8));
    float field=min(body,drip+.07);
    float edge=1.-smoothstep(radius-.012,radius+.008,field);
    float grain=noise(d*35.+float(i)*8.);
    float light=clamp(.55+d.y*.8-d.x*.7,0.,1.);
-   vec3 mud=mix(vec3(.07,.021,.009),vec3(.36,.145,.045),light)+grain*.025;
+   vec3 mud=mix(vec3(.018,.006,.002),vec3(.14,.052,.015),light)+grain*.007;
    float glint=exp(-pow((d.x+.055)*15.,2.)-pow((d.y-.085)*22.,2.));
-   mud+=vec3(.8,.55,.27)*glint*.8;
+   mud+=vec3(.8,.55,.27)*glint*.23;
    float rim=smoothstep(radius-.055,radius,field);
    mud*=1.-rim*.4;
    color=mix(color,mud,edge*stain);
- }
+ }}}
  float vignette=smoothstep(.3,.8,length((vUv-.5)*vec2(1.,.8)));
  color*=1.-vignette*(.16+nearMiss*.28);
  // Short warm impact exposure; no full white strobe.
@@ -65,20 +66,21 @@ function coilGeometry() {
   const centers: T.Vector3[] = [], n = 220, sides = 14;
   for (let i = 0; i <= n; i++) {
     const t = i / n, a = t * Math.PI * 5.6, r = .64 * Math.pow(1 - t, .8);
-    centers.push(new T.Vector3(Math.cos(a) * r + .15 * Math.pow(t, 8), t * 1.43 - .56, Math.sin(a) * r));
+    centers.push(new T.Vector3(Math.cos(a) * r + .15 * Math.pow(t, 8), 1.3 * (1-Math.pow(1-t,1.2)) - .56, Math.sin(a) * r));
   }
   const positions: number[] = [], uv: number[] = [], indices: number[] = [];
   for (let i = 0; i <= n; i++) {
     const tangent = centers[Math.min(n, i + 1)].clone().sub(centers[Math.max(0, i - 1)]).normalize();
     const normal = new T.Vector3(0,1,0).cross(tangent).normalize(), binormal = tangent.clone().cross(normal).normalize();
-    const radius = .255 * Math.pow(1 - i / n, .55) + .007;
+    const radius = .32 * Math.pow(1 - i / n, .4) + .007;
     for (let j = 0; j <= sides; j++) {
       const a = j / sides * Math.PI * 2;
       const p = centers[i].clone().addScaledVector(normal, Math.cos(a) * radius).addScaledVector(binormal, Math.sin(a) * radius);
       positions.push(p.x,p.y,p.z); uv.push(i / n * 6, j / sides);
-      if (i < n && j < sides) { const v = i * (sides + 1) + j; indices.push(v,v+sides+1,v+1,v+1,v+sides+1,v+sides+2); }
+      if (i < n && j < sides) { const v = i * (sides + 1) + j; indices.push(v,v+1,v+sides+1,v+1,v+sides+2,v+sides+1); }
     }
   }
+  for(const end of [0,n]){const index=positions.length/3;positions.push(...centers[end].toArray());uv.push(0,0);for(let j=0;j<sides;j++){const v=end*(sides+1)+j;if(end===0)indices.push(index,v+1,v);else indices.push(index,v,v+1);}}
   const geo = new T.BufferGeometry(); geo.setAttribute('position',new T.Float32BufferAttribute(positions,3)); geo.setAttribute('uv',new T.Float32BufferAttribute(uv,2)); geo.setIndex(indices); geo.computeVertexNormals(); return geo;
 }
 
@@ -125,11 +127,12 @@ export class ImpactRenderer {
   quality = 'Yüksek';
   get effectState(){return {warp:this.backgroundMaterial.uniforms.impact.value,stain:this.backgroundMaterial.uniforms.stain.value,anchors:this.backgroundMaterial.uniforms.anchors.value.map((a:T.Vector2)=>[a.x,a.y])};}
   private slowFrames = 0;
+  private qualityScale = 1;
   constructor(canvas: HTMLCanvasElement, video: HTMLVideoElement) {
     this.renderer = new T.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(1); this.renderer.setSize(this.width,this.height,false);
     this.renderer.autoClear = false; this.renderer.outputColorSpace = T.SRGBColorSpace;
-    this.renderer.toneMapping = T.ACESFilmicToneMapping; this.renderer.toneMappingExposure = 1.2;
+    this.renderer.toneMapping = T.ACESFilmicToneMapping; this.renderer.toneMappingExposure = 1;
     const gl = this.renderer.getContext(); this.gpuExtension = gl.getExtension('EXT_disjoint_timer_query_webgl2');
     const room = new RoomEnvironment(), pmrem = new T.PMREMGenerator(this.renderer);
     this.environment = pmrem.fromScene(room,.04); this.scene.environment = this.environment.texture; room.dispose(); pmrem.dispose();
@@ -144,13 +147,13 @@ export class ImpactRenderer {
     const data = new Uint8Array(128*128*4), rng = random(741);
     for(let i=0;i<data.length;i+=4){const value=100+rng()*75;data[i]=data[i+1]=data[i+2]=value;data[i+3]=255;}
     this.detailsTexture = new T.DataTexture(data,128,128); this.detailsTexture.wrapS = this.detailsTexture.wrapT = T.RepeatWrapping; this.detailsTexture.needsUpdate=true;
-    const material = new T.MeshPhysicalMaterial({ color:0x82401c, roughness:.29, metalness:0, clearcoat:.75, clearcoatRoughness:.19, bumpMap:this.detailsTexture, bumpScale:.014, envMapIntensity:1.25 });
+    const material = new T.MeshPhysicalMaterial({ color:0x50250f, roughness:.4, metalness:0, clearcoat:.4, clearcoatRoughness:.26, bumpMap:this.detailsTexture, bumpScale:.014, envMapIntensity:.65 });
     this.model.add(new T.Mesh(coilGeometry(),material));
     const base = new T.Mesh(new T.SphereGeometry(.67,32,16),material); base.scale.set(1,.4,.88); base.position.y=-.55; this.model.add(base);
     this.scene.add(this.model);
-    const key = new T.DirectionalLight(0xffdcb3,4.2); key.position.set(-3,5,7); this.scene.add(key);
-    const rim = new T.DirectionalLight(0xc3e9ff,3.2); rim.position.set(4,2,-3); this.scene.add(rim);
-    this.scene.add(new T.HemisphereLight(0xffebce,0x281208,1.1));
+    const key = new T.DirectionalLight(0xffdcb3,2.5); key.position.set(-3,5,7); this.scene.add(key);
+    const rim = new T.DirectionalLight(0xc3e9ff,1.7); rim.position.set(4,2,-3); this.scene.add(rim);
+    this.scene.add(new T.HemisphereLight(0xffebce,0x281208,.7));
     this.drops = new T.InstancedMesh(new T.SphereGeometry(1,10,8),material,160); this.drops.instanceMatrix.setUsage(T.DynamicDrawUsage); this.drops.frustumCulled=false; this.scene.add(this.drops);
     const shape=new T.Shape(), randomShape=random(241);
     for(let i=0;i<96;i++){const a=i/96*Math.PI*2,r=.75+randomShape()*.18+(i%6===0?.5:0);const x=Math.cos(a)*r,y=Math.sin(a)*r;if(i===0)shape.moveTo(x,y);else shape.lineTo(x,y);} shape.closePath();
@@ -174,12 +177,21 @@ export class ImpactRenderer {
     if(width===this.width&&height===this.height)return;
     const aspectChanged=Math.abs(this.width/this.height-aspect)>.01;
     this.width=width;this.height=height;this.camera.aspect=aspect;this.camera.updateProjectionMatrix();
-    this.renderer.setSize(width,height,false);this.full.setSize(width,height);
+    this.renderer.setSize(width,height,false);this.full.setSize(Math.round(width*this.qualityScale),Math.round(height*this.qualityScale));
     if(aspectChanged){this.endReplay();this.allocateReplay();}
   }
   private world(point:{x:number;y:number}) { const h=2*6*Math.tan(T.MathUtils.degToRad(21)); return new T.Vector3((point.x-.5)*h*this.camera.aspect,(.5-point.y)*h,0); }
   private seed(seed:number) {const rng=random(seed);this.particles=Array.from({length:160},()=>{const a=rng()*Math.PI*2,s=1+rng()*5;return{vx:Math.cos(a)*s,vy:Math.sin(a)*s+1,vz:rng()*4-1,size:.018+rng()*.075,stretch:1+rng()*2};});this.lastSeed=seed;}
   draw(time:number, round:Round, face:FaceShape|null, points:Float32Array|null, live:boolean, stain:boolean, record=true) {
+    if(this.replay&&this.replayFrames.length){
+      const started=performance.now();
+      this.replayTime=this.replayFrames[0].time+(time-this.replayStart)*this.replayRate;
+      const index=replayFrameIndex(this.replayFrames.map(f=>f.time),this.replayTime);
+      this.copy(this.replayFrames[index].target.texture,null);
+      this.renderMs=performance.now()-started;this.recordMs=0;
+      if(this.replayTime>this.replayFrames.at(-1)!.time+.08)this.endReplay();
+      return;
+    }
     const started=performance.now(), u=this.backgroundMaterial.uniforms, elapsed=time-round.impact;
     const hit=round.outcome==='hit'&&elapsed>=0;
     const punch=hit&&elapsed<.6?Math.sin(Math.min(1,elapsed/.035)*Math.PI/2)*Math.exp(-elapsed*7):0;
@@ -225,18 +237,11 @@ export class ImpactRenderer {
     if(record&&!this.replay&&time-this.lastRecord>=1/24){
       const before=performance.now(), frame=this.frames[this.writeIndex];this.copy(this.full.texture,frame.target);frame.time=time;this.writeIndex=(this.writeIndex+1)%this.frames.length;this.lastRecord=time;this.recordMs=performance.now()-before;
     }
-    let texture=this.full.texture;
-    if(this.replay&&this.replayFrames.length){
-      this.replayTime=this.replayFrames[0].time+(time-this.replayStart)*this.replayRate;
-      const index=replayFrameIndex(this.replayFrames.map(f=>f.time),this.replayTime);
-      texture=this.replayFrames[index].target.texture;
-      if(this.replayTime>this.replayFrames.at(-1)!.time+.08)this.endReplay();
-    }
-    this.copy(texture,null);
+    this.copy(this.full.texture,null);
     if(query){gl.endQuery(ext.TIME_ELAPSED_EXT);this.pendingGpu=query;}
     this.renderMs=performance.now()-started;
     if(Math.max(this.renderMs,this.gpuMs??0)>22)this.slowFrames++;else this.slowFrames=Math.max(0,this.slowFrames-1);
-    if(this.slowFrames>90&&this.quality==='Yüksek'){this.quality='Adaptif · %75';this.full.setSize(Math.round(this.width*.75),Math.round(this.height*.75));this.slowFrames=0;}
+    if(this.slowFrames>12&&this.qualityScale>.4){this.qualityScale=Math.max(.4,this.qualityScale*.75);this.quality=`Adaptif · %${Math.round(this.qualityScale*100)}`;this.full.setSize(Math.round(this.width*this.qualityScale),Math.round(this.height*this.qualityScale));this.slowFrames=0;}
   }
   private copy(texture:T.Texture,target:T.WebGLRenderTarget|null){this.blitMaterial.uniforms.image.value=texture;this.renderer.setRenderTarget(target);this.renderer.clear();this.renderer.render(this.blit,this.ortho);}
   beginReplay(time:number) {
