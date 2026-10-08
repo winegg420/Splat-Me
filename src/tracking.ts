@@ -29,7 +29,8 @@ export class FrameGate {
   busy = false;
   private last = -Infinity;
   acquire(time: number, interval: number) {
-    if (this.busy || time - this.last < interval) return false;
+    // Callback timestamps jitter around 33.33ms. A strict boundary can halve 30fps input.
+    if (this.busy || time - this.last < interval - Math.min(2, interval * .06)) return false;
     this.busy = true; this.last = time; return true;
   }
   release() { this.busy = false; }

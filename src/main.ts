@@ -1,5 +1,6 @@
 import './style.css';
 import { detectionSize, FrameGate, PoseFilter, type Pose } from './tracking';
+import { CameraDiagnostics } from './diagnostics';
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <header><a class="brand" href="./">splat<span>—</span>me</a><span class="tag">CAMERA LAB / 01</span></header>
@@ -13,6 +14,11 @@ const canvas = el('overlay') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
 const startButton = el('start') as HTMLButtonElement;
 const stopButton = el('stop') as HTMLButtonElement;
+let diagnostics = new CameraDiagnostics();
+const telemetry = document.createElement('details');
+telemetry.innerHTML = '<summary>Kamera / worker ayrıntıları</summary><pre id="capture-details" style="white-space:pre-wrap;font-size:11px;color:#9eafa5">Ölçüm bekleniyor.</pre>';
+document.querySelector('main')!.append(telemetry);
+const impactLink = document.createElement('a'); impactLink.href = '/impact-lab/'; impactLink.textContent = 'Impact Lab →'; impactLink.style.cssText = 'color:#cdff72;margin-left:20px;font-size:13px'; document.querySelector('header')!.append(impactLink);
 let generation = 0, active = false, worker: Worker | undefined, stream: MediaStream | undefined;
 let raf = 0, vfc = 0, fallback = 0, timeout = 0;
 let pose: Pose | null = null, resultAt = 0, duration = 0, latency = 0;
@@ -37,15 +43,18 @@ function armTimeout(ms: number, text: string) { clearTimeout(timeout); timeout =
 async function submit(now: number) {
   if (!active || document.hidden || video.readyState < 2) return;
   // One frame in flight, including bitmap conversion; never queue stale frames.
-  if (!gate.acquire(now, Math.max(1000 / 30, duration * 1.1))) return;
+  if (gate.busy) { diagnostics.busySkipped++; return; }
+  if (!gate.acquire(now, Math.max(1000 / 30, duration * 1.1))) { diagnostics.intervalSkipped++; return; }
   const token = generation, target = worker, currentGate = gate;
   const size = detectionSize(video.videoWidth, video.videoHeight);
   armTimeout(10000, 'Takip yanıt vermedi. Kamerayı yeniden başlatabilirsin.');
   try {
     const bitmap = await createImageBitmap(video, { resizeWidth: size.width, resizeHeight: size.height, resizeQuality: 'low' });
+    diagnostics.bitmapMs = performance.now() - now;
     if (token !== generation || !active || document.hidden) { bitmap.close(); currentGate.release(); if (token === generation) clearTimeout(timeout); return; }
     try { target!.postMessage({ type: 'frame', bitmap, timestamp: now, ...size }, [bitmap]); }
     catch (error) { bitmap.close(); throw error; }
+    diagnostics.submitted++;
     el('input').textContent = `${size.width} × ${size.height}`;
   } catch (error) { if (token === generation) stop(`Kare işlenemedi: ${String(error)}`); }
 }
@@ -54,12 +63,13 @@ function cameraLoop() {
     vfc = video.requestVideoFrameCallback((now, metadata) => {
       if (!active) return;
       cameraFrames++; previousMedia = metadata.mediaTime;
+      diagnostics.frame(metadata.presentedFrames);
       void submit(now); cameraLoop();
     });
   } else {
     const tick = (now: number) => {
       if (!active) return;
-      if (video.currentTime !== previousMedia) { previousMedia = video.currentTime; cameraFrames++; void submit(now); }
+      if (video.currentTime !== previousMedia) { previousMedia = video.currentTime; cameraFrames++; diagnostics.frame(); void submit(now); }
       fallback = requestAnimationFrame(tick);
     };
     fallback = requestAnimationFrame(tick);
@@ -89,6 +99,8 @@ function render(now: number) {
     el('latency').textContent = latency ? latency.toFixed(1) : '—';
     el('age').textContent = resultAt ? Math.max(0, now - resultAt).toFixed(0) : '—';
     el('resolution').textContent = `${width} × ${height} (${settings.frameRate?.toFixed(0) ?? '?'} fps ayar)`;
+    const m = diagnostics.sample(video, stream?.getVideoTracks()[0]);
+    el('capture-details').textContent = JSON.stringify({ note: 'Ana kamera FPS sayacı video callback hızıdır; doğrudan sensör ölçümü değildir. Kaynak FPS null ise tarayıcı desteklemiyor.', ...m }, null, 2);
     renderFrames = cameraFrames = detectionFrames = 0; sampleAt = now;
   }
   raf = requestAnimationFrame(render);
@@ -107,6 +119,7 @@ async function start() {
     video.srcObject = media; await video.play();
     if (token !== generation) return;
     active = true; gate = new FrameGate(); filter = new PoseFilter(); pose = null;
+    diagnostics = new CameraDiagnostics();
     duration = latency = resultAt = 0; previousMedia = -1;
     renderFrames = cameraFrames = detectionFrames = 0; sampleAt = performance.now();
     el('placeholder').hidden = true; el('live').classList.add('on'); el('state').textContent = 'KAMERA CANLI';
@@ -121,6 +134,7 @@ async function start() {
       if (data.type === 'error') stop(`Takip hatası: ${data.message}`);
       if (data.type === 'result') {
         gate.release(); duration = data.duration; latency = performance.now() - data.timestamp; detectionFrames++;
+        diagnostics.completed++; diagnostics.inferenceMs = duration; diagnostics.roundtripMs = latency;
         if (document.hidden || latency > 180) { pose = null; filter.reset(); return; }
         resultAt = data.timestamp;
         pose = data.pose ? filter.update(data.pose, data.timestamp) : null;

@@ -1,8 +1,10 @@
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 let detector: FaceLandmarker | undefined;
+let includeLandmarks = false;
 self.onmessage = async ({ data }) => {
   try {
     if (data.type === 'init') {
+      includeLandmarks = data.landmarks === true;
       const probe = new OffscreenCanvas(1, 1);
       const gl = probe.getContext('webgl2') || probe.getContext('webgl');
       if (!gl) throw new Error('Bu cihazda worker WebGL kullanılamıyor. Tarayıcı donanım hızlandırma ayarını kontrol et.');
@@ -28,7 +30,10 @@ self.onmessage = async ({ data }) => {
           const dx = (right.x - left.x) * data.width, dy = (right.y - left.y) * data.height;
           pose = { x: nose.x, y: nose.y, size: Math.hypot(dx, dy) / data.width, roll: Math.atan2(dy, dx) };
         }
-        self.postMessage({ type: 'result', pose, timestamp: data.timestamp, duration: performance.now() - start });
+        const packed = includeLandmarks && points ? new Float32Array(points.flatMap(p => [p.x, p.y, p.z])) : null;
+        const message = { type: 'result', pose, points: packed, timestamp: data.timestamp, duration: performance.now() - start };
+        if (packed) self.postMessage(message, { transfer: [packed.buffer] });
+        else self.postMessage(message);
       } finally { data.bitmap.close(); }
     }
   } catch (error) { self.postMessage({ type: 'error', message: error instanceof Error ? error.message : String(error) }); }

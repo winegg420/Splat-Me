@@ -24,10 +24,12 @@
   },
   "homepage": "https://github.com/winegg420/Splat-Me#readme",
   "dependencies": {
-    "@mediapipe/tasks-vision": "^1.1.0"
+    "@mediapipe/tasks-vision": "^1.1.0",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",
+    "@types/three": "^0.186.0",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
