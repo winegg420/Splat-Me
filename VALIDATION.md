@@ -8,3 +8,11 @@
 - Gerçek webcam, yüz içeren gerçek hareket, 1080p/60 FPS başarımı, yeniden yakalama süresi, Safari/Firefox ve mobil donanım performansı ölçülmedi.
 
 Panel değerleri kullanıcı kendi cihazında kamerayı açtığında oluşur. Otomatik testteki sahte kameranın değerleri ürün performansı kanıtı değildir.
+
+## Vercel HTTPS yayını
+
+- https://splat-me.vercel.app üretim adresine dağıtım başarılı.
+- Kimlik doğrulaması olmadan Chromium üzerinden sayfa açıldı; HTTPS güvenli bağlam ve kamera API erişimi doğrulandı.
+- Worker, yüz modeli, WASM yükleyicisi ve WASM ikilisi HTTP 200 ile geldi; WASM MIME türü ve dosya imzası kontrol edildi.
+- Canlı sayfada izin reddi sonrası kontrol düğmelerinin toparlanması geçti; tarayıcı JavaScript hatası görülmedi.
+- Bu yayın testi fiziksel kamerayı açmadı; gerçek cihaz performansına ilişkin önceki sınırlar geçerlidir.

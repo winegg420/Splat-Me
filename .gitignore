@@ -4,3 +4,6 @@ public/vendor/
 public/tracker.js
 test-results/
 playwright-report/
+.vercel/
+
+.vercel
