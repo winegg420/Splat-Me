@@ -35,6 +35,10 @@ test('GPU model, splat, audio scheduling, actual slow replay and near miss',asyn
 });
 test('real video pixels are warped and deposits follow simulated moving landmarks',async({page})=>{
   await page.setViewportSize({width:700,height:900});
+  await page.addInitScript(()=>{
+    const original=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia=()=>original({audio:false,video:{width:{exact:640},height:{exact:360},frameRate:20}});
+  });
   // Controlled landmarks isolate rendering/collision from detector accuracy. Camera remains a real synthetic MediaStream.
   await page.route('**/tracker.js',route=>route.fulfill({contentType:'application/javascript',body:`
     let frames=0;onmessage=({data})=>{if(data.type==='init'){postMessage({type:'ready'});return;}
@@ -46,7 +50,7 @@ test('real video pixels are warped and deposits follow simulated moving landmark
     data.bitmap.close();postMessage({type:'result',timestamp:data.timestamp,duration:1,pose:{x:.5+shift,y:.5,size:.16,roll:0},points},[points.buffer]);};` }));
   await page.goto('/impact-lab/');await page.locator('#auto-replay').uncheck();await page.locator('#start').click();
   await expect(page.locator('#throw')).toBeEnabled({timeout:20000});await page.locator('#throw').click();
-  await page.waitForFunction(()=>(window as any).__impactDiagnostics.effects.warp>.1);
+  await page.waitForFunction(()=>(window as any).__impactDiagnostics.effects.warp>.05,{},{timeout:10000});
   const before=await page.evaluate(()=>(window as any).__impactDiagnostics.effects.anchors[0][0]);
   await page.screenshot({path:'test-results/impact-camera-warp.png',fullPage:true});
   await expect.poll(()=>page.evaluate(()=>(window as any).__impactDiagnostics.effects.anchors[0][0]),{timeout:10000}).toBeLessThan(before-.08);

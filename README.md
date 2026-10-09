@@ -1,8 +1,10 @@
 # Splat-Me · Camera Lab
 
-Kamera ve kafa takibi temeli. Oyun efektleri, deformasyon ve ses içermez.
+Kamera ve kafa takibi temeli `/` adresinde korunur. Sinematik çarpışma prototipi ayrı `/impact-lab/` sayfasındadır; teknik ayrıntılar ve ölçüm sınırları [IMPACT-LAB.md](IMPACT-LAB.md) dosyasındadır.
 
 Canlı uygulama: **https://splat-me.vercel.app**. Kamera izni için “Kamerayı başlat” düğmesine dokunun.
+
+Impact Lab: **https://splat-me.vercel.app/impact-lab**. Kamera açıldıktan sonra FIRLAT/SPACE ile başlatılır; kamerasız efekt önizlemesi de mevcuttur.
 
 Vercel projesi `splat-me`, GitHub reposuna bağlıdır. `vercel.json` üretim derlemesini ve WASM MIME türünü tanımlar. Canlı sürümün erişim testi: `node scripts/smoke-deployment.mjs https://splat-me.vercel.app`.
 

@@ -4,6 +4,10 @@
   "installCommand": "npm ci",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/impact-lab", "destination": "/impact-lab/index.html" },
+    { "source": "/impact-lab/", "destination": "/impact-lab/index.html" }
+  ],
   "headers": [
     {
       "source": "/vendor/wasm/(.*).wasm",

@@ -17,7 +17,7 @@ const camera=new CameraPipeline(),audio=new ImpactAudio(),round=new Round();
 let graphics:ImpactRenderer;
 try{graphics=new ImpactRenderer($('scene') as HTMLCanvasElement,camera.video);}catch(e){$('status').textContent=`WebGL başlatılamadı: ${String(e)}. Güncel ve donanım hızlandırması açık bir tarayıcı kullan.`;button('start').disabled=true;throw e;}
 let running=false,demo:Outcome|null=null,stain=false,take=0,raf=0,last=performance.now(),frames=0,sampleAt=last;
-let replayStarted=false,replaySound=false,lastReplay=false,renderFps=0,renderP95=0;
+let replayStarted=false,replaySound=false,lastReplay=false,renderFps=0,renderP95=0,impactPan=0;
 let frameTimes:number[]=[],reports:unknown[]=[],lastMetrics:unknown=null;
 const demoFace:FaceShape={x:.5,y:.47,rx:.12,ry:.25,roll:0};
 const status=(text:string)=>{$('status').textContent=text;};
@@ -41,6 +41,7 @@ async function launch(preview:Outcome|null=null){
   if(round.start!==-Infinity&&!round.outcome)return;
   await audio.unlock().catch(()=>{});audio.stop();graphics.endReplay();
   demo=preview;replayStarted=false;replaySound=false;take++;stain=false;
+  if(innerWidth<760)$('viewport').scrollIntoView({behavior:'smooth',block:'center'});
   round.launch(performance.now()/1000,face,take*7919);
   audio.whoosh(round.duration,round.target.x*2-1);$('round-count').textContent=`TAKE ${String(take).padStart(3,'0')}`;
   status(preview?'Kamerasız efekt önizlemesi. Yüz takibi kullanılmıyor.':'Hedef kilitlendi. Şimdi başını çek!');
@@ -64,11 +65,11 @@ function render(now:number){
   const aspect=camera.video.videoWidth&&running?camera.video.videoWidth/camera.video.videoHeight:16/9;
   $('viewport').style.aspectRatio=String(aspect);graphics.resize(aspect);
   const outcome=round.advance(t,face,aspect);
-  if(outcome){stain=outcome==='hit';audio.impact(outcome,round.target.x*2-1);button('replay').disabled=false;status(outcome==='hit'?'SPLAT. Yüzü temizleyebilir veya yeniden deneyebilirsin.':outcome==='near'?'Kıl payı! Hedefin yanından geçtin.':outcome==='untracked'?'Çarpışma anında yüz takibi yoktu; sonuç sayılmadı.':'Temiz kaçış. Bir tur daha?');}
+  if(outcome){stain=outcome==='hit';impactPan=face?Math.max(-1,Math.min(1,(round.target.x-face.x)/face.rx)):0;audio.impact(outcome,impactPan);button('replay').disabled=false;status(outcome==='hit'?'SPLAT. Yüzü temizleyebilir veya yeniden deneyebilirsin.':outcome==='near'?'Kıl payı! Hedefin yanından geçtin.':outcome==='untracked'?'Çarpışma anında yüz takibi yoktu; sonuç sayılmadı.':'Temiz kaçış. Bir tur daha?');}
   if(round.outcome&&t-round.impact>.65&&!replayStarted&&checked('auto-replay'))replay();
   const elapsed=t-round.impact;
-  graphics.draw(t,round,face,demo?null:camera.freshFace?.points??null,running&&camera.video.readyState>=2,stain,round.start!==-Infinity&&!replayStarted);
-  if(graphics.replay&&graphics.replayTime>=round.impact&&!replaySound){audio.impact(round.outcome??'miss',round.target.x*2-1,.65);replaySound=true;}
+  graphics.draw(t,round,face,demo?null:camera.freshFace?.points??null,running&&camera.video.readyState>=2,stain,round.start!==-Infinity&&!replayStarted&&(!round.outcome||elapsed<=.75));
+  if(graphics.replay&&graphics.replayTime>=round.impact&&!replaySound){audio.impact(round.outcome??'miss',impactPan,.65);replaySound=true;}
   if(lastReplay&&!graphics.replay)status('Tekrar tamamlandı. Yeni bir tur için hazır.');lastReplay=graphics.replay;
   $('viewport').classList.toggle('cinematic',graphics.replay||round.outcome==='near'&&elapsed<.8);
   $('replay-label').hidden=!graphics.replay;

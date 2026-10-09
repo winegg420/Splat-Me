@@ -188,7 +188,7 @@ export class ImpactRenderer {
       this.replayTime=this.replayFrames[0].time+(time-this.replayStart)*this.replayRate;
       const index=replayFrameIndex(this.replayFrames.map(f=>f.time),this.replayTime);
       this.copy(this.replayFrames[index].target.texture,null);
-      this.renderMs=performance.now()-started;this.recordMs=0;
+      this.renderMs=performance.now()-started;this.recordMs=0;this.gpuMs=null;
       if(this.replayTime>this.replayFrames.at(-1)!.time+.08)this.endReplay();
       return;
     }
