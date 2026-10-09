@@ -11,7 +11,7 @@ export class ImpactAudio {
     if (!this.context) {
       const ctx = this.context = new AudioContext({ latencyHint: 'interactive' });
       const master = this.master = ctx.createGain(); master.gain.value = .65;
-      const compressor = ctx.createDynamicsCompressor(); compressor.threshold.value = -14; compressor.ratio.value = 5;
+      const compressor = ctx.createDynamicsCompressor(); compressor.threshold.value = -10; compressor.ratio.value = 4;compressor.attack.value=.003;compressor.release.value=.16;
       master.connect(compressor); compressor.connect(ctx.destination);
       this.noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
       const data = this.noise.getChannelData(0), rng = random(482);
@@ -53,16 +53,19 @@ export class ImpactAudio {
     if (!this.context) return;
     const at = this.context.currentTime + .008; this.lastScheduledAt = performance.now() + 8;
     if (kind === 'hit') {
-      this.pop(at, 135, .22, .9, 0, rate); // body / thud
-      this.spray(at, .2, 1650, 1.1, pan, rate); // wet crack
-      this.pop(at + .018, 440, .12, .35, pan, rate); // elastic squelch
+      this.pop(at, 112, .27, 1.15, 0, rate); // broad low-frequency body
+      this.pop(at+.006/rate, 69, .17, .55, 0, rate);
+      this.spray(at, .105, 2200, 1.8, pan*.5, rate); // contact slap, very short
+      this.spray(at+.022/rate, .28, 780, 1.25, -pan*.4, rate); // thick liquid breakup
+      this.pop(at + .032/rate, 310, .17, .5, pan, rate); // elastic compression
       const rng = random(91);
-      for (let i = 0; i < 12; i++) {
-        const t = at + .025 + rng() * .38 / rate;
-        this.pop(t, 220 + rng() * 620, .025 + rng() * .065, .06 + rng() * .1, rng() * 2 - 1, rate);
-        if (i % 3 === 0) this.spray(t, .09, 2800, .12, rng() * 2 - 1, rate);
+      for (let i = 0; i < 20; i++) {
+        const t = at + (.055 + rng() * .66) / rate, position=rng()*2-1;
+        this.pop(t, 150 + rng() * 440, .025 + rng() * .085, .065 + rng() * .16, position, rate);
+        this.spray(t+.005/rate, .04+rng()*.07, 1200+rng()*1900, .12+rng()*.2, position, rate);
       }
-      this.spray(at + .07, .42, 480, .18, -pan, rate); // viscous tail
+      this.spray(at + .10/rate, .56, 380, .42, -pan, rate); // viscous tail
+      if(rate<1){this.spray(at+.04,.85,210,.24,-.65,rate);this.spray(at+.085,.7,310,.22,.65,rate);} // stretched stereo low wash for replay
     } else if (kind === 'near') { this.spray(at, .35, 3100, .6, pan, rate); this.pop(at, 62, .28, .35, 0, rate); }
     else this.spray(at, .13, 850, .18, pan, rate);
   }

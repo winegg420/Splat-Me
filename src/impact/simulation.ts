@@ -24,7 +24,7 @@ export class Round {
   target = { x: .5, y: .45 };
   outcome: Outcome | null = null;
   seed = 1;
-  duration = 1.55;
+  duration = 1.25;
   launch(time: number, face: FaceShape, seed: number) {
     this.start = time; this.impact = -Infinity; this.outcome = null;
     this.target = { x: face.x, y: face.y }; this.seed = seed;
