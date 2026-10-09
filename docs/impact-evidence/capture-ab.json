@@ -1,0 +1,182 @@
+{
+  "environment": "Linux CI, synthetic camera, SwiftShader; not physical camera performance",
+  "trackingOn": {
+    "outcome": null,
+    "replay": false,
+    "replayTime": 0,
+    "impactTime": null,
+    "stain": false,
+    "effects": {
+      "warp": 0,
+      "stain": 0,
+      "layers": 0,
+      "anchors": [],
+      "particles": 144
+    },
+    "audioScheduledAt": 0,
+    "renderFps": 7.69289945380413,
+    "renderP95": 383.2999999999993,
+    "metrics": {
+      "callbackFps": 3.0705457895141275,
+      "presentedFps": 19.958547631841828,
+      "sourceFps": 19.958547631841828,
+      "deliveredFps": 19.958547631841828,
+      "decodedFps": 19.958547631841828,
+      "submittedFps": 0.7676364473785319,
+      "detectionFps": 0.7676364473785319,
+      "busySkipped": 10,
+      "intervalSkipped": 0,
+      "bitmapMs": 1.7000000000116415,
+      "inferenceMs": 3637.7000000000116,
+      "roundtripMs": 3656.5,
+      "settings": {
+        "aspectRatio": 1.7777777777777777,
+        "deviceId": "a85df876b134deae2f650fe2b88072b90cf99dd4e6fc4c3432db22cb721edc7b",
+        "exposureMode": "manual",
+        "exposureTime": 50,
+        "focusDistance": 50,
+        "focusMode": "manual",
+        "frameRate": 20,
+        "groupId": "a9c2bcef34f8a50c22ea7a9b87e775f7fb8533f73deee9923e7dda0b6cb35722",
+        "height": 1080,
+        "resizeMode": "none",
+        "width": 1920
+      },
+      "capabilities": {
+        "aspectRatio": {
+          "max": 3840,
+          "min": 0.000462962962962963
+        },
+        "deviceId": "a85df876b134deae2f650fe2b88072b90cf99dd4e6fc4c3432db22cb721edc7b",
+        "exposureMode": [
+          "manual",
+          "continuous"
+        ],
+        "exposureTime": {
+          "max": 100,
+          "min": 10,
+          "step": 5
+        },
+        "facingMode": [],
+        "focusDistance": {
+          "max": 100,
+          "min": 10,
+          "step": 5
+        },
+        "focusMode": [
+          "manual",
+          "continuous"
+        ],
+        "frameRate": {
+          "max": 20,
+          "min": 0
+        },
+        "groupId": "a9c2bcef34f8a50c22ea7a9b87e775f7fb8533f73deee9923e7dda0b6cb35722",
+        "height": {
+          "max": 2160,
+          "min": 1
+        },
+        "resizeMode": [
+          "none",
+          "crop-and-scale"
+        ],
+        "width": {
+          "max": 3840,
+          "min": 1
+        }
+      },
+      "constraints": {
+        "facingMode": "user",
+        "frameRate": 60,
+        "height": 1080,
+        "width": 1920
+      },
+      "discardedFrames": 0,
+      "droppedVideoFrames": 384
+    },
+    "drawCpuMs": 0.39999999999417923,
+    "drawGpuMs": 173.019454,
+    "quality": "FX %45 · kamera tam çözünürlük",
+    "replayCameraFps": 0,
+    "drawCalls": 3,
+    "replayMemoryMB": 45.5625
+  },
+  "trackingOff": {
+    "callbackFps": 11.97365795250435,
+    "presentedFps": 20.953901416882612,
+    "sourceFps": 19.95609658750725,
+    "deliveredFps": 19.95609658750725,
+    "decodedFps": 20.953901416882612,
+    "submittedFps": 0,
+    "detectionFps": 0.9978048293753625,
+    "busySkipped": 11,
+    "intervalSkipped": 0,
+    "bitmapMs": 0.39999999999417923,
+    "inferenceMs": 721.1999999999825,
+    "roundtripMs": 725.0999999999949,
+    "settings": {
+      "aspectRatio": 1.7777777777777777,
+      "deviceId": "a85df876b134deae2f650fe2b88072b90cf99dd4e6fc4c3432db22cb721edc7b",
+      "exposureMode": "manual",
+      "exposureTime": 50,
+      "focusDistance": 50,
+      "focusMode": "manual",
+      "frameRate": 20,
+      "groupId": "a9c2bcef34f8a50c22ea7a9b87e775f7fb8533f73deee9923e7dda0b6cb35722",
+      "height": 1080,
+      "resizeMode": "none",
+      "width": 1920
+    },
+    "capabilities": {
+      "aspectRatio": {
+        "max": 3840,
+        "min": 0.000462962962962963
+      },
+      "deviceId": "a85df876b134deae2f650fe2b88072b90cf99dd4e6fc4c3432db22cb721edc7b",
+      "exposureMode": [
+        "manual",
+        "continuous"
+      ],
+      "exposureTime": {
+        "max": 100,
+        "min": 10,
+        "step": 5
+      },
+      "facingMode": [],
+      "focusDistance": {
+        "max": 100,
+        "min": 10,
+        "step": 5
+      },
+      "focusMode": [
+        "manual",
+        "continuous"
+      ],
+      "frameRate": {
+        "max": 20,
+        "min": 0
+      },
+      "groupId": "a9c2bcef34f8a50c22ea7a9b87e775f7fb8533f73deee9923e7dda0b6cb35722",
+      "height": {
+        "max": 2160,
+        "min": 1
+      },
+      "resizeMode": [
+        "none",
+        "crop-and-scale"
+      ],
+      "width": {
+        "max": 3840,
+        "min": 1
+      }
+    },
+    "constraints": {
+      "facingMode": "user",
+      "frameRate": 60,
+      "height": 1080,
+      "width": 1920
+    },
+    "discardedFrames": 0,
+    "droppedVideoFrames": 436
+  }
+}
