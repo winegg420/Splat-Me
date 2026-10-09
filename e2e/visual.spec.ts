@@ -11,6 +11,7 @@ test('fixed portrait: approach, contact, fluid, actual pixel warp, stains and mo
   const state=await page.evaluate(age=>(window as any).__impactQA.frame(age),age);
   await page.waitForTimeout(150);
   await page.locator('#scene').screenshot({path:`test-results/visual-${name}.png`});
+  await expect(page.locator('#scene')).toHaveScreenshot(`${name}.png`,{threshold:.12,maxDiffPixelRatio:.003});
   samples.push({name,age,effects:state.effects});if(name==='clean')await writeFile('test-results/fixture-landmarks.json',JSON.stringify(state.points));
  }
  expect(samples.find(s=>s.name==='contact').effects.warp).toBeGreaterThan(.6);
@@ -25,6 +26,7 @@ test('fixed portrait: approach, contact, fluid, actual pixel warp, stains and mo
  const unwarped=await page.locator('#scene').screenshot({path:'test-results/visual-warp-before.png'});
  await page.evaluate(()=>(window as any).__impactQA.frame(.045,7919,true,false));await page.waitForTimeout(150);
  const warped=await page.locator('#scene').screenshot({path:'test-results/visual-warp-after.png'});
+ await expect(page.locator('#scene')).toHaveScreenshot('warp-after.png',{threshold:.12,maxDiffPixelRatio:.003});
  expect(Buffer.compare(unwarped,warped)).not.toBe(0);
  const measurements=[];
  for(const age of [-1.8,.18]){

@@ -1,6 +1,6 @@
 import * as T from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { replayFrameIndex, type FaceShape, type Round } from './simulation';
+import { replayFrameIndex, replayWindow, type FaceShape, type Round } from './simulation';
 import { FluidScene } from './fluid';
 import { FaceDeposits } from './deposits';
 import { faceWarpGLSL } from './warp';
@@ -59,6 +59,7 @@ export class ImpactRenderer {
  qaIsolateWarp=false;qaDisableWarp=false;
  get effectState(){return {warp:this.backgroundMaterial.uniforms.impact.value,stain:this.deposits.scene.visible?Math.min(1,this.deposits.count):0,layers:this.deposits.count,anchors:this.deposits.anchors,particles:this.fluid.particleCount};}
  get replayCaptureFps(){const a=this.replayFrames;return a.length>1?(a.length-1)/(a.at(-1)!.time-a[0].time):0;}
+ get canReplay(){const times=this.frames.map(f=>f.time).filter(Number.isFinite).sort((a,b)=>a-b);return !!replayWindow(times,this.impactTime);}
  constructor(canvas:HTMLCanvasElement,video:HTMLVideoElement){
   this.renderer=new T.WebGLRenderer({canvas,antialias:false,alpha:false,powerPreference:'high-performance'});
   this.renderer.setPixelRatio(1);this.renderer.setSize(this.width,this.height,false);this.renderer.autoClear=false;
@@ -124,7 +125,7 @@ export class ImpactRenderer {
   if(Math.max(this.renderMs,this.gpuMs??0)>22)this.slow++;else this.slow=Math.max(0,this.slow-1);
   if(!this.qualityLocked&&this.slow>18&&this.scale>.45){this.scale=Math.max(.45,this.scale*.8);this.quality=`FX %${Math.round(this.scale*100)} · kamera tam çözünürlük`;this.fx.setSize(Math.round(this.width*this.scale),Math.round(this.height*this.scale));this.slow=0;}
  }
- beginReplay(time:number){this.replayFrames=this.frames.filter(f=>Number.isFinite(f.time)&&f.time>=this.impactTime-.28&&f.time<=this.impactTime+.86).sort((a,b)=>a.time-b.time);if(this.replayFrames.length<5)return false;this.replay=true;this.replayStart=time;this.replayTime=this.replayFrames[0].time;return true;}
+ beginReplay(time:number){const frames=this.frames.filter(f=>Number.isFinite(f.time)).sort((a,b)=>a.time-b.time),window=replayWindow(frames.map(f=>f.time),this.impactTime);if(!window)return false;this.replayFrames=frames.slice(window.start,window.end+1);this.replay=true;this.replayStart=time;this.replayTime=this.replayFrames[0].time;return true;}
  endReplay(){this.replay=false;}
  clearDeposits(){this.deposits.clear();this.depositedAt=-Infinity;}
  clearReplay(){this.endReplay();this.frames.forEach(f=>{f.time=-Infinity;f.points=null;f.face=null;});this.replayFrames=[];this.lastRecord=-Infinity;}

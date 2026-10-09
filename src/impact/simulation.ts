@@ -40,3 +40,8 @@ export function replayFrameIndex(times: number[], time: number) {
   while (lo < hi) { const mid = Math.ceil((lo + hi) / 2); if (times[mid] <= time) lo = mid; else hi = mid - 1; }
   return lo;
 }
+export function replayWindow(times:number[],impact:number){
+  if(times.length<2)return null;
+  const start=replayFrameIndex(times,impact-.28),end=replayFrameIndex(times,impact+.86);
+  return end>start&&times[end]-times[start]>.15?{start,end}:null;
+}

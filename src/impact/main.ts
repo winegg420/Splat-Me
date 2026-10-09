@@ -72,14 +72,15 @@ function render(now:number){
   const aspect=camera.video.videoWidth&&running?camera.video.videoWidth/camera.video.videoHeight:16/9;
   $('viewport').style.aspectRatio=String(aspect);graphics.resize(aspect);
   const outcome=round.advance(t,face,aspect);
-  if(outcome){stain=stain||outcome==='hit';impactPan=face?Math.max(-1,Math.min(1,(round.target.x-face.x)/face.rx)):0;audio.impact(outcome,impactPan);button('replay').disabled=false;status(outcome==='hit'?'SPLAT. Yüzü temizleyebilir veya yeniden deneyebilirsin.':outcome==='near'?'Kıl payı! Hedefin yanından geçtin.':outcome==='untracked'?'Çarpışma anında yüz takibi yoktu; sonuç sayılmadı.':'Temiz kaçış. Bir tur daha?');}
+  if(outcome){stain=stain||outcome==='hit';impactPan=face?Math.max(-1,Math.min(1,(round.target.x-face.x)/face.rx)):0;audio.impact(outcome,impactPan);status(outcome==='hit'?'SPLAT. Yüzü temizleyebilir veya yeniden deneyebilirsin.':outcome==='near'?'Kıl payı! Hedefin yanından geçtin.':outcome==='untracked'?'Çarpışma anında yüz takibi yoktu; sonuç sayılmadı.':'Temiz kaçış. Bir tur daha?');}
   if(round.outcome&&t-round.impact>.84&&!replayStarted&&checked('auto-replay'))replay();
-  const elapsed=t-round.impact;
+  const elapsed=t-round.impact;button('replay').disabled=!round.outcome||elapsed<.84||!graphics.canReplay||graphics.replay;
   graphics.draw(t,round,face,demo?fixture?.points??null:camera.freshFace?.points??null,running&&camera.video.readyState>=2,stain,round.start!==-Infinity&&!replayStarted&&(!round.outcome||elapsed<=.86));
   if(graphics.replay&&graphics.replayTime>=round.impact&&!replaySound){audio.impact(round.outcome??'miss',impactPan,graphics.replayRate);replaySound=true;}
   if(lastReplay&&!graphics.replay)status('Tekrar tamamlandı. Yeni bir tur için hazır.');lastReplay=graphics.replay;
   $('viewport').classList.toggle('cinematic',graphics.replay||round.outcome==='near'&&elapsed<.8);
   $('replay-label').hidden=!graphics.replay;
+  if(graphics.replay)$('replay-label').querySelector('small')!.textContent=demo?'Sabit yapay portre · efektler yeniden çiziliyor':`Kayıt ${graphics.replayCaptureFps.toFixed(1)} FPS · efekt ${renderFps.toFixed(1)} FPS · canlı takip sürüyor`;
   $('mode').textContent=graphics.replay?'KAYIT TEKRARI':demo?'KAMERASIZ EFEKT ÖNİZLEMESİ':running?'CANLI · AYNA GÖRÜNTÜSÜ':'3D ÖNİZLEME';
   $('face-state').textContent=demo?'SİMÜLE HEDEF':camera.freshFace?'YÜZ TAKİBİ AKTİF':running?'YÜZ ARANIYOR':'KAMERA KAPALI';
   const inFlight=round.start!==-Infinity&&!round.outcome;

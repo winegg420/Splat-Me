@@ -1,5 +1,5 @@
 import { describe,it,expect } from 'vitest';
-import { collision, Round, random, replayFrameIndex } from '../src/impact/simulation';
+import { collision, Round, random, replayFrameIndex, replayWindow } from '../src/impact/simulation';
 import { FrameGate } from '../src/tracking';
 const face={x:.5,y:.5,rx:.12,ry:.25,roll:0};
 describe('impact decisions',()=>{
@@ -22,6 +22,11 @@ describe('impact decisions',()=>{
   });
 });
 describe('real replay and cadence',()=>{
+  it('replays sparse camera samples with a real pre-impact frame',()=>{
+    expect(replayWindow([9.3,9.6,10,10.4,10.8],10)).toEqual({start:1,end:4});
+    expect(replayWindow([9.6,10.4],10)).toEqual({start:0,end:1});
+    expect(replayWindow([10],10)).toBe(null);
+  });
   it('selects recorded frames by timestamp, including uneven capture gaps',()=>{
     expect(replayFrameIndex([1,1.04,1.1,1.14],1.09)).toBe(1);
     expect(replayFrameIndex([1,1.04,1.1,1.14],1.2)).toBe(3);
