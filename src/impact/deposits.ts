@@ -1,4 +1,5 @@
 import * as T from 'three';
+import { faceWarpGLSL } from './warp';
 import triangles from './face-triangles.json';
 import { random, type FaceShape } from './simulation';
 
@@ -16,7 +17,8 @@ export function depositSpec(seed:number,at:number):DepositSpec {
   for(let i=0;i<23;i++)centers.push({x:.1+rng()*.8,y:.12+rng()*.76,r:.008+rng()*.021});
   return {seed,at,centers,drips};
 }
-const vertex=`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position,1.);}`;
+const vertex=`varying vec2 vUv;uniform float aspect,impact,direction;uniform vec4 face;uniform vec2 anchors[5];${faceWarpGLSL}
+void main(){vUv=uv;vec2 source=position.xy*.5+.5,p=source;for(int i=0;i<4;i++){p+=source-faceSample(p);}gl_Position=vec4(p*2.-1.,position.z,1.);}`;
 const fragment=`
 precision highp float;
 varying vec2 vUv;uniform sampler2D heightMap;uniform float age,opacity;uniform vec4 drips[5];
@@ -56,9 +58,10 @@ export class FaceDeposits {
   private reference:Float32Array|null=null;
   private occluder:T.Mesh;
   private warmLayer?:Layer;
+  private warp={aspect:{value:16/9},impact:{value:0},direction:{value:1},face:{value:new T.Vector4(.5,.5,.2,.3)},anchors:{value:Array.from({length:5},()=>new T.Vector2(.5,.5))}};
   anchors:number[][]=[];
   constructor(){this.geometry.setAttribute('position',new T.BufferAttribute(new Float32Array(468*3),3));this.geometry.setAttribute('uv',new T.BufferAttribute(new Float32Array(468*2),2));this.geometry.setIndex(triangles);
-    this.occluder=new T.Mesh(this.geometry,new T.ShaderMaterial({vertexShader:vertex,fragmentShader:'void main(){gl_FragColor=vec4(0.);}',colorWrite:false,depthWrite:true,side:T.DoubleSide}));this.occluder.frustumCulled=false;this.occluder.renderOrder=-1;this.scene.add(this.occluder);
+    this.occluder=new T.Mesh(this.geometry,new T.ShaderMaterial({uniforms:this.warp,vertexShader:vertex,fragmentShader:'void main(){gl_FragColor=vec4(0.);}',colorWrite:false,depthWrite:true,side:T.DoubleSide}));this.occluder.frustumCulled=false;this.occluder.renderOrder=-1;this.scene.add(this.occluder);
   }
   get count(){return this.layers.length;}
   get specs(){return this.layers.map(l=>l.spec);}
@@ -88,14 +91,15 @@ export class FaceDeposits {
       }
     }
     const texture=new T.CanvasTexture(canvas);texture.generateMipmaps=false;texture.minFilter=T.LinearFilter;
-    const material=new T.ShaderMaterial({uniforms:{heightMap:{value:texture},age:{value:0},opacity:{value:1},drips:{value:spec.drips.map(d=>new T.Vector4(d.x,d.y,d.r,d.speed))}},vertexShader:vertex,fragmentShader:fragment,transparent:true,depthTest:true,depthWrite:false,side:T.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
+    const material=new T.ShaderMaterial({uniforms:{...this.warp,heightMap:{value:texture},age:{value:0},opacity:{value:1},drips:{value:spec.drips.map(d=>new T.Vector4(d.x,d.y,d.r,d.speed))}},vertexShader:vertex,fragmentShader:fragment,transparent:true,depthTest:true,depthWrite:false,side:T.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
     const mesh=new T.Mesh(this.geometry,material);mesh.frustumCulled=false;mesh.renderOrder=this.layers.length;this.scene.add(mesh);this.layers.push({mesh,texture,spec});
     // Bound texture/overdraw cost, while retaining multiple asymmetric hits.
     if(this.layers.length>4){const old=this.layers.shift()!;this.scene.remove(old.mesh);(old.mesh.material as T.Material).dispose();old.texture.dispose();}
   }
-  update(points:Float32Array|null,face:FaceShape|null,time:number){
-    this.scene.visible=!!points&&!!face;
-    if(!points||!face)return;
+  update(points:Float32Array|null,face:FaceShape|null,time:number,impact=0,aspect=16/9,direction=1){
+    this.scene.visible=!!points&&!!face&&this.layers.length>0;
+    if(!points||!face||!this.layers.length)return;
+    this.warp.impact.value=impact;this.warp.aspect.value=aspect;this.warp.direction.value=direction;this.warp.face.value.set(face.x,1-face.y,face.rx,face.ry);[1,117,346,61,291].forEach((id,i)=>this.warp.anchors.value[i].set(1-points[id*3],1-points[id*3+1]));
     const position=this.geometry.getAttribute('position') as T.BufferAttribute;
     for(let i=0;i<468;i++)position.setXYZ(i,1-points[i*3]*2,1-points[i*3+1]*2,points[i*3+2]);
     position.needsUpdate=true;

@@ -42,6 +42,7 @@ export class FluidScene {
   private axis=new T.Vector3(0,1,0);
   private time=0;
   get particleCount(){return this.drops.count;}
+  get visible(){return this.body.visible||this.sheet.visible||this.drops.visible||this.threads.visible;}
   constructor(){
     const rng=random(72),noise=new Uint8Array(128*128*4);for(let i=0;i<noise.length;i+=4){const n=110+rng()*75;noise[i]=noise[i+1]=noise[i+2]=n;noise[i+3]=255;}
     this.noise=new T.DataTexture(noise,128,128);this.noise.wrapS=this.noise.wrapT=T.RepeatWrapping;this.noise.magFilter=T.LinearFilter;this.noise.needsUpdate=true;
@@ -54,7 +55,9 @@ export class FluidScene {
     this.sheetGeometry.setAttribute('position',new T.BufferAttribute(this.sheetBase,3));this.sheetGeometry.setIndex(indices);this.sheetGeometry.computeVertexNormals();
     const sheetMaterial=this.material.clone();sheetMaterial.bumpMap=null;sheetMaterial.side=T.DoubleSide;sheetMaterial.transparent=true;
     this.sheet=new T.Mesh(this.sheetGeometry,sheetMaterial);this.sheet.frustumCulled=false;this.root.add(this.sheet);
-    this.drops=new T.InstancedMesh(new T.SphereGeometry(1,16,10),this.material,144);this.drops.instanceMatrix.setUsage(T.DynamicDrawUsage);this.drops.frustumCulled=false;this.root.add(this.drops);
+    const dropGeometry=new T.SphereGeometry(1,20,12),dp=dropGeometry.getAttribute('position') as T.BufferAttribute;
+    for(let i=0;i<dp.count;i++){const taper=.78+.26*dp.getY(i);dp.setXYZ(i,dp.getX(i)*taper,dp.getY(i),dp.getZ(i)*taper);}dropGeometry.computeVertexNormals();
+    this.drops=new T.InstancedMesh(dropGeometry,this.material,144);this.drops.instanceMatrix.setUsage(T.DynamicDrawUsage);this.drops.frustumCulled=false;this.root.add(this.drops);
     this.threads=new T.InstancedMesh(new T.CylinderGeometry(1,1,1,8,1,true),this.material,14);this.threads.instanceMatrix.setUsage(T.DynamicDrawUsage);this.threads.frustumCulled=false;this.root.add(this.threads);
   }
   private world(point:{x:number;y:number},aspect:number){const h=2*6*Math.tan(T.MathUtils.degToRad(21));return this.origin.set((point.x-.5)*h*aspect,(.5-point.y)*h,0);}
@@ -92,7 +95,7 @@ export class FluidScene {
         scale*=Math.max(0,1-Math.max(0,age-.7)/1.25);
         this.velocity.set(Math.cos(d.angle)*d.speed,Math.sin(d.angle)*d.speed-5.8*Math.max(0,age),d.vz).normalize();
         this.scratch.position.copy(origin).add(this.position);this.scratch.quaternion.setFromUnitVectors(this.axis,this.velocity);
-        const stretch=1+Math.min(3.2,d.speed*.35)*Math.exp(-Math.max(0,age)*2.5);
+        const stretch=1+Math.min(i<8?2.8:1.2,d.speed*.18)*Math.exp(-Math.max(0,age)*4);
         this.scratch.scale.set(d.size*scale/Math.sqrt(stretch),d.size*scale*stretch,d.size*scale/Math.sqrt(stretch));this.scratch.updateMatrix();this.drops.setMatrixAt(i,this.scratch.matrix);
       }this.drops.instanceMatrix.needsUpdate=true;
     }

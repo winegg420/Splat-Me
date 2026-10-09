@@ -75,7 +75,7 @@ function render(now:number){
   if(round.outcome&&t-round.impact>.84&&!replayStarted&&checked('auto-replay'))replay();
   const elapsed=t-round.impact;
   graphics.draw(t,round,face,demo?fixture?.points??null:camera.freshFace?.points??null,running&&camera.video.readyState>=2,stain,round.start!==-Infinity&&!replayStarted&&(!round.outcome||elapsed<=.86));
-  if(graphics.replay&&graphics.replayTime>=round.impact&&!replaySound){audio.impact(round.outcome??'miss',impactPan,.55);replaySound=true;}
+  if(graphics.replay&&graphics.replayTime>=round.impact&&!replaySound){audio.impact(round.outcome??'miss',impactPan,graphics.replayRate);replaySound=true;}
   if(lastReplay&&!graphics.replay)status('Tekrar tamamlandı. Yeni bir tur için hazır.');lastReplay=graphics.replay;
   $('viewport').classList.toggle('cinematic',graphics.replay||round.outcome==='near'&&elapsed<.8);
   $('replay-label').hidden=!graphics.replay;

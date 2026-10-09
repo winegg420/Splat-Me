@@ -11,7 +11,7 @@ test('fixed portrait: approach, contact, fluid, actual pixel warp, stains and mo
   const state=await page.evaluate(age=>(window as any).__impactQA.frame(age),age);
   await page.waitForTimeout(150);
   await page.locator('#scene').screenshot({path:`test-results/visual-${name}.png`});
-  samples.push({name,age,effects:state.effects});
+  samples.push({name,age,effects:state.effects});if(name==='clean')await writeFile('test-results/fixture-landmarks.json',JSON.stringify(state.points));
  }
  expect(samples.find(s=>s.name==='contact').effects.warp).toBeGreaterThan(.6);
  expect(samples.find(s=>s.name==='elastic-return').effects.warp).toBeLessThan(0);

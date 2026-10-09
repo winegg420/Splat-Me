@@ -3,25 +3,16 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { replayFrameIndex, type FaceShape, type Round } from './simulation';
 import { FluidScene } from './fluid';
 import { FaceDeposits } from './deposits';
+import { faceWarpGLSL } from './warp';
 
 const vertex=`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`;
 export function impactEnvelope(age:number){return age<0||age>.46?0:Math.sin(Math.min(1,age/.035)*Math.PI/2)*Math.exp(-age*7.8)*Math.cos(Math.max(0,age-.09)*14);}
 const cameraFragment=`precision highp float;
 varying vec2 vUv;uniform sampler2D cameraImage;uniform float live,impact,aspect,nearMiss,time;uniform vec4 face;uniform vec2 anchors[5];uniform float direction;
-vec2 metric(vec2 p){return p*vec2(aspect,1.);}
-vec2 bulge(vec2 uv,vec2 center,float radius,float amount){vec2 d=uv-center;float f=exp(-dot(metric(d),metric(d))/(radius*radius));return d*f*amount;}
+${faceWarpGLSL}
 void main(){
- vec2 uv=vUv;float radius=max(.04,face.w);
- // Inverse sampling deforms the actual source pixels, with independent anatomical controls.
- uv-=bulge(vUv,anchors[1],radius*.47,impact*.64);
- uv-=bulge(vUv,anchors[2],radius*.47,impact*.50);
- float nose=exp(-dot(metric(vUv-anchors[0]),metric(vUv-anchors[0]))/pow(radius*.36,2.));
- uv.x-=direction*radius*.23*impact*nose;
- vec2 mouth=(anchors[3]+anchors[4])*.5,d=metric(vUv-mouth);
- float lips=exp(-dot(d*vec2(.65,1.7),d*vec2(.65,1.7))/pow(radius*.38,2.));
- uv.x-=(vUv.x-mouth.x)*impact*.65*lips;uv.y+=impact*radius*.08*lips;
- float mask=exp(-dot(metric(vUv-face.xy),metric(vUv-face.xy))/pow(radius*.85,2.));
- uv.x-=direction*impact*.022*mask*(vUv.y-face.y)/radius;
+ if(abs(impact)<.0001&&nearMiss<.001){gl_FragColor=vec4(live>.5?texture2D(cameraImage,vec2(1.-vUv.x,vUv.y)).rgb:vec3(.055,.060,.052),1.);return;}
+ vec2 uv=faceSample(vUv);
  vec3 c=live>.5?texture2D(cameraImage,vec2(1.-clamp(uv.x,.001,.999),clamp(uv.y,.001,.999))).rgb:vec3(.055,.060,.052);
  c=mix(c/12.92,pow((c+.055)/1.055,vec3(2.4)),step(vec3(.04045),c));
  float vignette=smoothstep(.35,.85,length(vUv-.5));c*=1.-vignette*(.1+nearMiss*.4);
@@ -71,6 +62,7 @@ export class ImpactRenderer {
   this.renderer=new T.WebGLRenderer({canvas,antialias:false,alpha:false,powerPreference:'high-performance'});
   this.renderer.setPixelRatio(1);this.renderer.setSize(this.width,this.height,false);this.renderer.autoClear=false;
   this.renderer.outputColorSpace=T.SRGBColorSpace;this.renderer.toneMapping=T.ACESFilmicToneMapping;
+  this.fx.samples=Math.min(4,this.renderer.capabilities.maxSamples);
   this.gpuExtension=this.renderer.getContext().getExtension('EXT_disjoint_timer_query_webgl2');
   this.camera.position.z=6;
   const room=new RoomEnvironment(),pmrem=new T.PMREMGenerator(this.renderer);this.environment=pmrem.fromScene(room,.04);this.scene.environment=this.environment.texture;room.dispose();pmrem.dispose();
@@ -115,14 +107,16 @@ export class ImpactRenderer {
   u.cameraImage.value=source;u.live.value=live?1:0;u.impact.value=face&&hit?impactEnvelope(elapsed):0;u.aspect.value=this.camera.aspect;u.nearMiss.value=round.outcome==='near'&&elapsed>=0?Math.exp(-elapsed*4):0;u.time.value=time;u.direction.value=round.seed%2?1:-1;
   if(face){u.face.value.set(face.x,1-face.y,face.rx,face.ry);[1,117,346,61,291].forEach((id,i)=>u.anchors.value[i].set(points?1-points[id*3]:face.x,points?1-points[id*3+1]:1-face.y));}
   if(this.qaDisableWarp)u.impact.value=0;
-  this.fluid.update(time,round,this.camera.aspect);this.deposits.update(points,face,time);
+  this.fluid.update(time,round,this.camera.aspect);this.deposits.update(points,face,time,u.impact.value,this.camera.aspect,u.direction.value);
   this.fluid.root.visible=!this.qaIsolateWarp;if(this.qaIsolateWarp)this.deposits.scene.visible=false;
   const gl=this.renderer.getContext() as WebGL2RenderingContext,ext=this.gpuExtension;
   if(ext&&this.pendingGpu&&gl.getQueryParameter(this.pendingGpu,gl.QUERY_RESULT_AVAILABLE)){if(!gl.getParameter(ext.GPU_DISJOINT_EXT))this.gpuMs=gl.getQueryParameter(this.pendingGpu,gl.QUERY_RESULT)/1e6;gl.deleteQuery(this.pendingGpu);this.pendingGpu=null;}
   const query=ext&&!this.pendingGpu?gl.createQuery():null;if(query)gl.beginQuery(ext.TIME_ELAPSED_EXT,query);
   this.renderer.info.autoReset=false;this.renderer.info.reset();
-  this.renderer.setRenderTarget(this.fx);this.renderer.setClearColor(0,0);this.renderer.clear();this.renderer.render(this.scene,this.camera);
-  this.renderer.setRenderTarget(null);this.renderer.setClearColor(0,1);this.renderer.clear();this.renderer.render(this.background,this.ortho);this.renderer.clearDepth();this.renderer.render(this.deposits.scene,this.ortho);this.renderer.render(this.overlay,this.ortho);
+  const fxVisible=this.fluid.visible&&!this.qaIsolateWarp;
+  if(fxVisible){this.renderer.setRenderTarget(this.fx);this.renderer.setClearColor(0,0);this.renderer.clear();this.renderer.render(this.scene,this.camera);}
+  this.renderer.setRenderTarget(null);this.renderer.setClearColor(0,1);this.renderer.clear();this.renderer.render(this.background,this.ortho);this.renderer.clearDepth();
+  if(this.deposits.scene.visible)this.renderer.render(this.deposits.scene,this.ortho);if(fxVisible)this.renderer.render(this.overlay,this.ortho);
   if(query){gl.endQuery(ext.TIME_ELAPSED_EXT);this.pendingGpu=query;}
   this.renderMs=performance.now()-started;
   if(Math.max(this.renderMs,this.gpuMs??0)>22)this.slow++;else this.slow=Math.max(0,this.slow-1);
