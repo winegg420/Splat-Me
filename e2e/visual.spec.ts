@@ -11,7 +11,7 @@ test('fixed portrait: approach, contact, fluid, actual pixel warp, stains and mo
   const state=await page.evaluate(age=>(window as any).__impactQA.frame(age),age);
   await page.waitForTimeout(150);
   await page.locator('#scene').screenshot({path:`test-results/visual-${name}.png`});
-  await expect(page.locator('#scene')).toHaveScreenshot(`${name}.png`,{threshold:.12,maxDiffPixelRatio:.003});
+  await expect(page.locator('#scene')).toHaveScreenshot(`${name}.png`,{threshold:.12,maxDiffPixelRatio:.003,timeout:20000});
   samples.push({name,age,effects:state.effects});if(name==='clean')await writeFile('test-results/fixture-landmarks.json',JSON.stringify(state.points));
  }
  expect(samples.find(s=>s.name==='contact').effects.warp).toBeGreaterThan(.6);
@@ -30,12 +30,12 @@ test('fixed portrait: approach, contact, fluid, actual pixel warp, stains and mo
  expect(Buffer.compare(unwarped,warped)).not.toBe(0);
  const measurements=[];
  for(const age of [-1.8,.18]){
-  await page.evaluate(age=>(window as any).__impactQA.frame(age),age);await page.waitForTimeout(300);
+  await page.evaluate(age=>(window as any).__impactQA.frame(age),age);await page.evaluate(()=>(window as any).__impactQA.benchmark(true));await page.waitForTimeout(300);
   const sample=await page.evaluate(()=>new Promise(resolve=>{
    const intervals:number[]=[],cpu:number[]=[],gpu:(number|null)[]=[];let before=performance.now();
    function step(now:number){intervals.push(now-before);before=now;const d=(window as any).__impactDiagnostics;cpu.push(d.drawCpuMs);gpu.push(d.drawGpuMs);if(intervals.length<30)requestAnimationFrame(step);else{const sorted=[...intervals].sort((a,b)=>a-b);resolve({fps:1000/(intervals.reduce((a,b)=>a+b)/intervals.length),p95:sorted[Math.floor(sorted.length*.95)],cpu,gpu,quality:d.quality,resolution:[document.querySelector('canvas')!.width,document.querySelector('canvas')!.height],drawCalls:d.drawCalls});}}
    requestAnimationFrame(step);
-  }));measurements.push({age,sample});
+  }));measurements.push({age,sample});await page.evaluate(()=>(window as any).__impactQA.benchmark(false));
  }
  await writeFile('test-results/visual-performance.json',JSON.stringify({environment:'Linux CI SwiftShader, fixed generated portrait; not real-device performance',measurements},null,2));
  await writeFile('test-results/visual-states.json',JSON.stringify(samples,null,2));

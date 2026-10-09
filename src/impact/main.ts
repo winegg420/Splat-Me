@@ -22,7 +22,7 @@ let replayStarted=false,replaySound=false,lastReplay=false,renderFps=0,renderP95
 let frameTimes:number[]=[],reports:unknown[]=[],lastMetrics:unknown=null;
 let demoFace:FaceShape={x:.5,y:.47,rx:.12,ry:.25,roll:0};
 let fixture:Awaited<ReturnType<typeof loadFixture>>|null=null,fixturePromise:ReturnType<typeof loadFixture>|null=null;
-let qaTime:number|null=null;
+let qaTime:number|null=null,qaRenderContinuously=false;
 async function ensureFixture(){if(!fixture){status('Yapay test portresi hazırlanıyor…');fixture=await (fixturePromise??=loadFixture());demoFace=fixture.face;graphics.setFixture(fixture.image);}return fixture;}
 const status=(text:string)=>{$('status').textContent=text;};
 camera.onState=status;
@@ -75,7 +75,7 @@ function render(now:number){
   if(outcome){stain=stain||outcome==='hit';impactPan=face?Math.max(-1,Math.min(1,(round.target.x-face.x)/face.rx)):0;audio.impact(outcome,impactPan);status(outcome==='hit'?'SPLAT. Yüzü temizleyebilir veya yeniden deneyebilirsin.':outcome==='near'?'Kıl payı! Hedefin yanından geçtin.':outcome==='untracked'?'Çarpışma anında yüz takibi yoktu; sonuç sayılmadı.':'Temiz kaçış. Bir tur daha?');}
   if(round.outcome&&t-round.impact>.84&&!replayStarted&&checked('auto-replay'))replay();
   const elapsed=t-round.impact;button('replay').disabled=!round.outcome||elapsed<.84||!graphics.canReplay||graphics.replay;
-  graphics.draw(t,round,face,demo?fixture?.points??null:camera.freshFace?.points??null,running&&camera.video.readyState>=2,stain,round.start!==-Infinity&&!replayStarted&&(!round.outcome||elapsed<=.86));
+  if(qaTime===null||qaRenderContinuously)graphics.draw(t,round,face,demo?fixture?.points??null:camera.freshFace?.points??null,running&&camera.video.readyState>=2,stain,round.start!==-Infinity&&!replayStarted&&(!round.outcome||elapsed<=.86));
   if(graphics.replay&&graphics.replayTime>=round.impact&&!replaySound){audio.impact(round.outcome??'miss',impactPan,graphics.replayRate);replaySound=true;}
   if(lastReplay&&!graphics.replay)status('Tekrar tamamlandı. Yeni bir tur için hazır.');lastReplay=graphics.replay;
   $('viewport').classList.toggle('cinematic',graphics.replay||round.outcome==='near'&&elapsed<.8);
@@ -91,7 +91,7 @@ function render(now:number){
   const title=$('impact-title');title.textContent=!graphics.replay&&elapsed>=0&&elapsed<.62?(round.outcome==='hit'?'':round.outcome==='near'?'KIL PAYI.':round.outcome==='miss'?'TEMİZ.':''):'';
   title.style.transform=`translate(-50%,-50%) rotate(-8deg) scale(${1+Math.max(0,.15-elapsed)*2})`;
   if(now-sampleAt>1000){
-    renderFps=frames*1000/(now-sampleAt);frames=0;sampleAt=now;
+    renderFps=qaTime!==null&&!qaRenderContinuously?0:frames*1000/(now-sampleAt);frames=0;sampleAt=now;
     const sorted=[...frameTimes].sort((a,b)=>a-b);renderP95=sorted[Math.floor(sorted.length*.95)]??0;
     const m=camera.metrics.sample(camera.video,camera.stream?.getVideoTracks()[0]);lastMetrics=m;
     const n=(v:number|null)=>v===null?'—':v.toFixed(1);
@@ -114,10 +114,12 @@ raf=requestAnimationFrame(render);
 
 // Explicit visual QA endpoint: static fictional portrait, never live-camera evidence.
 if(new URLSearchParams(location.search).has('qa'))(window as any).__impactQA={
+ benchmark(enabled:boolean){qaRenderContinuously=enabled;},
  async frame(age:number,seed=7919,isolateWarp=false,disableWarp=false){
+  qaRenderContinuously=false;
   const f=await ensureFixture();demo='hit';graphics.useFixture=true;graphics.endReplay();graphics.clearDeposits();graphics.clearReplay();
   round.launch(10,f.face,seed);round.impact=10+round.duration;round.outcome=age>=0?'hit':null;
-  graphics.lockQAQuality();qaTime=round.impact+age;stain=age>=0;replayStarted=true;graphics.qaIsolateWarp=isolateWarp;graphics.qaDisableWarp=disableWarp;
+  graphics.resize(16/9);graphics.lockQAQuality();qaTime=round.impact+age;stain=age>=0;replayStarted=true;graphics.qaIsolateWarp=isolateWarp;graphics.qaDisableWarp=disableWarp;
   graphics.draw(qaTime,round,f.face,f.points,false,stain,false);
   return {face:f.face,points:Array.from(f.points),effects:graphics.effectState};
  },
