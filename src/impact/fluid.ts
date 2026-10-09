@@ -1,22 +1,23 @@
 import * as T from 'three';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js';
 import { random, type Round } from './simulation';
 
 function organicGeometry(){
-  const marching=new MarchingCubes(48,new T.MeshBasicMaterial(),true,false,30000);
+  const marching=new MarchingCubes(64,new T.MeshBasicMaterial(),true,false,30000);
   marching.reset();
-  for(let i=0;i<11;i++){const t=i/10;marching.addBall(.5+.075*Math.sin(t*7.5),.25+t*.46,.5+.055*Math.cos(t*5),.14+Math.sin(t*Math.PI)*.06,12);}
-  marching.addBall(.38,.40,.53,.15,12);marching.addBall(.58,.55,.48,.10,12);marching.update();
+  for(let i=0;i<11;i++){const t=i/10;marching.addBall(.5+.075*Math.sin(t*7.5),.25+t*.46,.5+.055*Math.cos(t*5),.50+Math.sin(t*Math.PI)*.18,12);}
+  marching.addBall(.43,.40,.53,.36,12);marching.addBall(.53,.55,.48,.32,12);marching.update();
   const source=marching.geometry,count=source.drawRange.count;
   const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.BufferAttribute((source.getAttribute('position').array as Float32Array).slice(0,count*3),3));
   const p=geometry.getAttribute('position') as T.BufferAttribute,uv=new Float32Array(count*2);
   for(let i=0;i<count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),r=1+.035*Math.sin(x*23+y*11)*Math.sin(z*18-y*7);p.setXYZ(i,x*r*1.2,y*1.22,z*r);uv[i*2]=Math.atan2(z,x)/Math.PI*.5+.5;uv[i*2+1]=y*1.3;}
-  geometry.setAttribute('uv',new T.BufferAttribute(uv,2));geometry.computeVertexNormals();source.dispose();(marching.material as T.Material).dispose();return geometry;
+  geometry.setAttribute('uv',new T.BufferAttribute(uv,2));const smooth=mergeVertices(geometry,.0001);smooth.computeVertexNormals();geometry.dispose();source.dispose();(marching.material as T.Material).dispose();return smooth;
 }
 type Drop={angle:number;speed:number;up:number;vz:number;size:number;delay:number;split:number;parent:number;side:number};
 export function fluidSeed(seed:number):Drop[]{
   const rng=random(seed),drops:Drop[]=[];
-  for(let i=0;i<96;i++)drops.push({angle:rng()*Math.PI*2,speed:1.5+rng()*5.5,up:rng()*.8,vz:.3+rng()*4,size:i<18?.045+rng()*.075:.009+rng()*.032,delay:.04+rng()*.07,split:i<24?.18+rng()*.25:Infinity,parent:-1,side:0});
+  for(let i=0;i<96;i++)drops.push({angle:rng()*Math.PI*2,speed:2.8+rng()*7.5,up:rng()*.8,vz:.3+rng()*4,size:i<26?.065+rng()*.095:.014+rng()*.040,delay:.008+rng()*.035,split:i<24?.18+rng()*.25:Infinity,parent:-1,side:0});
   for(let i=0;i<24;i++)for(const side of [-1,1])drops.push({...drops[i],parent:i,side,size:drops[i].size*.48,delay:drops[i].split,split:Infinity});
   return drops;
 }
@@ -25,7 +26,7 @@ export class FluidScene {
   readonly material:T.MeshPhysicalMaterial;
   private body:T.Mesh;
   private bodyMaterial:T.MeshPhysicalMaterial;
-  private bodyBase:Float32Array;
+  private bodyTime={value:0};
   private sheet:T.Mesh;
   private sheetGeometry=new T.BufferGeometry();
   private sheetBase=new Float32Array(65*8*3);
@@ -44,9 +45,10 @@ export class FluidScene {
   constructor(){
     const rng=random(72),noise=new Uint8Array(128*128*4);for(let i=0;i<noise.length;i+=4){const n=110+rng()*75;noise[i]=noise[i+1]=noise[i+2]=n;noise[i+3]=255;}
     this.noise=new T.DataTexture(noise,128,128);this.noise.wrapS=this.noise.wrapT=T.RepeatWrapping;this.noise.magFilter=T.LinearFilter;this.noise.needsUpdate=true;
-    this.material=new T.MeshPhysicalMaterial({color:0x623417,roughness:.3,metalness:0,clearcoat:.62,clearcoatRoughness:.2,envMapIntensity:.7,bumpMap:this.noise,bumpScale:.018});
+    this.material=new T.MeshPhysicalMaterial({color:0x623417,roughness:.39,metalness:0,clearcoat:.46,clearcoatRoughness:.27,envMapIntensity:.7,bumpMap:this.noise,bumpScale:.007});
     this.bodyMaterial=this.material.clone();this.bodyMaterial.transparent=true;
-    this.body=new T.Mesh(organicGeometry(),this.bodyMaterial);this.bodyBase=(this.body.geometry.getAttribute('position').array as Float32Array).slice();this.root.add(this.body);
+    this.bodyMaterial.onBeforeCompile=shader=>{shader.uniforms.motionTime=this.bodyTime;shader.vertexShader='uniform float motionTime;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`vec3 transformed=position;transformed.x*=1.+.045*sin(motionTime*12.+position.y*8.);transformed.y+=.025*sin(motionTime*11.+position.x*12.);transformed.z*=1.+.05*cos(motionTime*10.+position.y*7.);`);};
+    this.body=new T.Mesh(organicGeometry(),this.bodyMaterial);this.root.add(this.body);
     const indices:number[]=[];
     for(let ring=0;ring<8;ring++)for(let j=0;j<=64;j++){if(ring<7&&j<64){const v=ring*65+j;indices.push(v,v+1,v+65,v+1,v+66,v+65);}}
     this.sheetGeometry.setAttribute('position',new T.BufferAttribute(this.sheetBase,3));this.sheetGeometry.setIndex(indices);this.sheetGeometry.computeVertexNormals();
@@ -63,25 +65,25 @@ export class FluidScene {
     const origin=this.world(round.target,aspect);
     this.body.visible=inFlight||round.start===-Infinity||hit&&elapsed<.19||(round.outcome==='near'||round.outcome==='miss')&&elapsed<.4;
     this.bodyMaterial.opacity=hit?Math.max(0,1-elapsed/.19):1;
-    if(inFlight){const t=flight/round.duration;this.body.position.set(origin.x+(1-t)*Math.sin(t*5)*1.2,origin.y+(1-t)*1.1,-16*(1-t));this.body.scale.setScalar(.72);this.body.rotation.set(.4+flight*1.8,flight*5,Math.sin(flight*4)*.4);}
-    else if(hit){const squash=Math.min(1,elapsed/.085);this.body.position.copy(origin);this.body.scale.set(.72*(1+squash*1.8),.72*(1+squash*.9),.72*(1-squash*.91));this.body.rotation.set(.18,0,round.seed*.2);}
+    if(inFlight){const t=flight/round.duration;this.body.position.set(origin.x+(1-t)*Math.sin(t*5)*1.2,origin.y+(1-t)*1.1,-16*(1-t));this.body.scale.setScalar(1.05);this.body.rotation.set(.4+flight*1.8,flight*5,Math.sin(flight*4)*.4);}
+    else if(hit){const squash=Math.min(1,elapsed/.085);this.body.position.copy(origin);this.body.scale.set(1.05*(1+squash*.85),1.05*(1+squash*.35),1.05*(1-squash*.91));this.body.rotation.set(.18,0,round.seed*.2);}
     else if(round.start===-Infinity){this.body.position.set(0,.05,0);this.body.scale.setScalar(1.5);this.body.rotation.set(.25,time*.35,-.32);}
     else {this.body.position.copy(origin);this.body.position.z=elapsed*18;}
-    if(this.body.visible){const p=this.body.geometry.getAttribute('position') as T.BufferAttribute;for(let i=0;i<p.count;i++){const j=i*3,x=this.bodyBase[j],y=this.bodyBase[j+1],z=this.bodyBase[j+2];p.setXYZ(i,x*(1+.045*Math.sin(time*12+y*8)),y+.025*Math.sin(time*11+x*12),z*(1+.05*Math.cos(time*10+y*7)));}p.needsUpdate=true;}
-    this.sheet.visible=hit&&elapsed<.48;
+    this.bodyTime.value=time;
+    this.sheet.visible=hit&&elapsed<.16;
     if(this.sheet.visible){
-      const expand=1-Math.exp(-elapsed*13),fade=Math.max(0,1-Math.max(0,elapsed-.18)/.3);
-      (this.sheet.material as T.MeshPhysicalMaterial).opacity=fade;
+      const expand=1-Math.exp(-elapsed*13),fade=Math.max(0,1-Math.max(0,elapsed-.025)/.135);
+      (this.sheet.material as T.MeshPhysicalMaterial).opacity=fade*.7;
       const p=this.sheetGeometry.getAttribute('position') as T.BufferAttribute;
       for(let ring=0;ring<8;ring++)for(let j=0;j<=64;j++){
         const a=j/64*Math.PI*2,r=ring/7;
         const edge=.82+.19*Math.sin(a*3+round.seed)+.13*Math.sin(a*7+round.seed*.3);
-        const radius=(.15+expand*1.05)*r*edge;
-        const curl=Math.pow(r,3)*(.26*Math.sin(a*5+time*8)+.22)*expand;
+        const radius=(.10+expand*.65)*r*edge;
+        const curl=Math.pow(r,3)*(.055*Math.sin(a*5+time*8)+.08)*expand;
         p.setXYZ(ring*65+j,Math.cos(a)*radius*1.15,Math.sin(a)*radius*.84,.10+curl+Math.sin(r*Math.PI)*.12*(1-expand));
       }p.needsUpdate=true;this.sheetGeometry.computeVertexNormals();this.sheet.position.copy(origin);
     }
-    this.drops.visible=hit&&elapsed<2.1;this.threads.visible=hit&&elapsed>.035&&elapsed<.4;
+    this.drops.visible=hit&&elapsed<2.1;this.threads.visible=hit&&elapsed>.018&&elapsed<.19;
     if(this.drops.visible){
       for(let i=0;i<this.dropsData.length;i++){
         const d=this.dropsData[i],age=elapsed-d.delay;let scale=age>=0?Math.min(1,age/.025):0;
@@ -94,7 +96,7 @@ export class FluidScene {
         this.scratch.scale.set(d.size*scale/Math.sqrt(stretch),d.size*scale*stretch,d.size*scale/Math.sqrt(stretch));this.scratch.updateMatrix();this.drops.setMatrixAt(i,this.scratch.matrix);
       }this.drops.instanceMatrix.needsUpdate=true;
     }
-    if(this.threads.visible){for(let i=0;i<14;i++){const d=this.dropsData[i],t=Math.max(0,elapsed-d.delay);this.path(d,elapsed,this.position);const length=this.position.length(),radius=Math.max(0,.023*(1-elapsed/.4))*Math.min(1,t/.04);this.scratch.position.copy(origin).addScaledVector(this.position,.5);this.scratch.quaternion.setFromUnitVectors(this.axis,this.position.clone().normalize());this.scratch.scale.set(radius,length,radius);this.scratch.updateMatrix();this.threads.setMatrixAt(i,this.scratch.matrix);}this.threads.instanceMatrix.needsUpdate=true;}
+    if(this.threads.visible){for(let i=0;i<14;i++){const d=this.dropsData[i],t=Math.max(0,elapsed-d.delay);this.path(d,elapsed,this.position);const length=this.position.length(),radius=Math.max(0,.014*(1-elapsed/.19))*Math.min(1,t/.04);this.scratch.position.copy(origin).addScaledVector(this.position,.5);this.scratch.quaternion.setFromUnitVectors(this.axis,this.position.clone().normalize());this.scratch.scale.set(radius,length,radius);this.scratch.updateMatrix();this.threads.setMatrixAt(i,this.scratch.matrix);}this.threads.instanceMatrix.needsUpdate=true;}
   }
   dispose(){const geometries=new Set<T.BufferGeometry>(),materials=new Set<T.Material>();this.root.traverse(o=>{if(o instanceof T.Mesh){geometries.add(o.geometry);for(const m of Array.isArray(o.material)?o.material:[o.material])materials.add(m);}});geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());this.noise.dispose();}
 }

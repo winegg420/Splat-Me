@@ -16,10 +16,12 @@ export function depositSpec(seed:number,at:number):DepositSpec {
   for(let i=0;i<23;i++)centers.push({x:.1+rng()*.8,y:.12+rng()*.76,r:.008+rng()*.021});
   return {seed,at,centers,drips};
 }
-const vertex=`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`;
+const vertex=`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position,1.);}`;
 const fragment=`
 precision highp float;
 varying vec2 vUv;uniform sampler2D heightMap;uniform float age,opacity;uniform vec4 drips[5];
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x),f.y);}
 float field(vec2 uv){
  float h=texture2D(heightMap,uv).r;
  for(int i=0;i<5;i++){
@@ -30,7 +32,7 @@ float field(vec2 uv){
    float body=1.-smoothstep(radius*.3,radius,length(pa-ba*t));
    h=max(h,body*.76*smoothstep(.01,.06,travel));
  }
- return h;
+ return h*(.78+.22*noise(uv*36.));
 }
 void main(){
  float h=field(vUv);float alpha=smoothstep(.14,.34,h)*opacity*smoothstep(0.,.095,age);
@@ -38,10 +40,10 @@ void main(){
  vec2 e=vec2(.0025,0.);vec2 gradient=vec2(field(vUv+e)-field(vUv-e),field(vUv+e.yx)-field(vUv-e.yx));
  vec3 n=normalize(vec3(-gradient*4.5,1.));
  vec3 l=normalize(vec3(-.45,.65,1.));float diffuse=.25+.75*max(0.,dot(n,l));
- vec3 brown=mix(vec3(.020,.006,.0015),vec3(.105,.041,.010),clamp(h,0.,1.))*diffuse;
- float rim=1.-smoothstep(.18,.48,h);brown*=1.-rim*.45;
+ vec3 brown=mix(vec3(.029,.009,.0025),vec3(.14,.055,.014),clamp(h,0.,1.))*diffuse;
+ float rim=1.-smoothstep(.18,.48,h);brown*=1.-rim*.18;
  float spec=pow(max(0.,dot(n,normalize(l+vec3(0.,0.,1.)))),42.);
- brown+=vec3(.8,.65,.42)*spec*.3*smoothstep(.3,.65,h);
+ brown+=vec3(.8,.65,.42)*spec*.22*smoothstep(.3,.65,h);
  gl_FragColor=vec4(brown,alpha);
  #include <colorspace_fragment>
 }`;
@@ -52,10 +54,18 @@ export class FaceDeposits {
   readonly geometry=new T.BufferGeometry();
   private layers:Layer[]=[];
   private reference:Float32Array|null=null;
+  private occluder:T.Mesh;
+  private warmLayer?:Layer;
   anchors:number[][]=[];
-  constructor(){this.geometry.setAttribute('position',new T.BufferAttribute(new Float32Array(468*3),3));this.geometry.setAttribute('uv',new T.BufferAttribute(new Float32Array(468*2),2));this.geometry.setIndex(triangles);}
+  constructor(){this.geometry.setAttribute('position',new T.BufferAttribute(new Float32Array(468*3),3));this.geometry.setAttribute('uv',new T.BufferAttribute(new Float32Array(468*2),2));this.geometry.setIndex(triangles);
+    this.occluder=new T.Mesh(this.geometry,new T.ShaderMaterial({vertexShader:vertex,fragmentShader:'void main(){gl_FragColor=vec4(0.);}',colorWrite:false,depthWrite:true,side:T.DoubleSide}));this.occluder.frustumCulled=false;this.occluder.renderOrder=-1;this.scene.add(this.occluder);
+  }
   get count(){return this.layers.length;}
   get specs(){return this.layers.map(l=>l.spec);}
+  warm(renderer:T.WebGLRenderer,camera:T.Camera){
+    this.add(-1,-1,null,{x:.5,y:.5,rx:.2,ry:.3,roll:0});renderer.compile(this.scene,camera);
+    this.warmLayer=this.layers.pop()!;this.scene.remove(this.warmLayer.mesh);this.reference=null;
+  }
   add(seed:number,at:number,points:Float32Array|null,face:FaceShape){
     if(!this.reference){
       this.reference=points?.slice()??null;
@@ -73,12 +83,12 @@ export class FaceDeposits {
       for(let j=0;j<lobes;j++){
         const r=center.r*(j?(.45+rng()*.5):1),a=rng()*Math.PI*2;
         const x=(center.x+Math.cos(a)*center.r*(j?.6:0))*512,y=(1-center.y+Math.sin(a)*center.r*(j?.6:0))*512;
-        const g=ctx.createRadialGradient(x,y,0,x,y,r*512);g.addColorStop(0,'rgba(255,255,255,0.62)');g.addColorStop(.55,'rgba(255,255,255,0.4)');g.addColorStop(1,'rgba(255,255,255,0)');
+        const g=ctx.createRadialGradient(x,y,0,x,y,r*512);g.addColorStop(0,'rgba(255,255,255,0.32)');g.addColorStop(.55,'rgba(255,255,255,0.23)');g.addColorStop(1,'rgba(255,255,255,0)');
         ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(x,y,r*512,r*512,0,0,Math.PI*2);ctx.fill();
       }
     }
     const texture=new T.CanvasTexture(canvas);texture.generateMipmaps=false;texture.minFilter=T.LinearFilter;
-    const material=new T.ShaderMaterial({uniforms:{heightMap:{value:texture},age:{value:0},opacity:{value:1},drips:{value:spec.drips.map(d=>new T.Vector4(d.x,d.y,d.r,d.speed))}},vertexShader:vertex,fragmentShader:fragment,transparent:true,depthTest:false,depthWrite:false,side:T.DoubleSide});
+    const material=new T.ShaderMaterial({uniforms:{heightMap:{value:texture},age:{value:0},opacity:{value:1},drips:{value:spec.drips.map(d=>new T.Vector4(d.x,d.y,d.r,d.speed))}},vertexShader:vertex,fragmentShader:fragment,transparent:true,depthTest:true,depthWrite:false,side:T.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
     const mesh=new T.Mesh(this.geometry,material);mesh.frustumCulled=false;mesh.renderOrder=this.layers.length;this.scene.add(mesh);this.layers.push({mesh,texture,spec});
     // Bound texture/overdraw cost, while retaining multiple asymmetric hits.
     if(this.layers.length>4){const old=this.layers.shift()!;this.scene.remove(old.mesh);(old.mesh.material as T.Material).dispose();old.texture.dispose();}
@@ -87,11 +97,11 @@ export class FaceDeposits {
     this.scene.visible=!!points&&!!face;
     if(!points||!face)return;
     const position=this.geometry.getAttribute('position') as T.BufferAttribute;
-    for(let i=0;i<468;i++)position.setXYZ(i,1-points[i*3]*2,1-points[i*3+1]*2,0);
+    for(let i=0;i<468;i++)position.setXYZ(i,1-points[i*3]*2,1-points[i*3+1]*2,points[i*3+2]);
     position.needsUpdate=true;
     this.anchors=[1,117,346,61,291].map(i=>[1-points[i*3],1-points[i*3+1]]);
     for(const layer of this.layers){layer.mesh.visible=time>=layer.spec.at;const m=layer.mesh.material as T.ShaderMaterial;m.uniforms.age.value=time-layer.spec.at;m.uniforms.opacity.value=1;}
   }
   clear(){for(const l of this.layers){this.scene.remove(l.mesh);(l.mesh.material as T.Material).dispose();l.texture.dispose();}this.layers=[];this.reference=null;}
-  dispose(){this.clear();this.geometry.dispose();}
+  dispose(){this.clear();this.geometry.dispose();(this.occluder.material as T.Material).dispose();if(this.warmLayer){(this.warmLayer.mesh.material as T.Material).dispose();this.warmLayer.texture.dispose();}}
 }

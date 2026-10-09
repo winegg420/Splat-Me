@@ -103,7 +103,7 @@ function render(now:number){
     $('diagnostic-text').textContent=JSON.stringify(report,null,2);
   }
   // Read-only diagnostics for automated browser checks; no fake tracking in production.
-  (window as any).__impactDiagnostics={outcome:round.outcome,replay:graphics.replay,replayTime:graphics.replayTime,impactTime:round.impact,stain,effects:graphics.effectState,audioScheduledAt:audio.lastScheduledAt,renderFps,renderP95,metrics:lastMetrics,quality:graphics.quality,replayCameraFps:graphics.replayCaptureFps,drawCalls:graphics.renderer.info.render.calls,replayMemoryMB:graphics.replayMemoryMB};
+  (window as any).__impactDiagnostics={outcome:round.outcome,replay:graphics.replay,replayTime:graphics.replayTime,impactTime:round.impact,stain,effects:graphics.effectState,audioScheduledAt:audio.lastScheduledAt,renderFps,renderP95,metrics:lastMetrics,drawCpuMs:graphics.renderMs,drawGpuMs:graphics.gpuMs,quality:graphics.quality,replayCameraFps:graphics.replayCaptureFps,drawCalls:graphics.renderer.info.render.calls,replayMemoryMB:graphics.replayMemoryMB};
   raf=requestAnimationFrame(render);
 }
 document.addEventListener('visibilitychange',()=>{if(document.hidden){audio.stop();round.reset();graphics.clearReplay();stain=false;graphics.clearDeposits();camera.face=null;}});
@@ -112,10 +112,10 @@ raf=requestAnimationFrame(render);
 
 // Explicit visual QA endpoint: static fictional portrait, never live-camera evidence.
 if(new URLSearchParams(location.search).has('qa'))(window as any).__impactQA={
- async frame(age:number,seed=7919){
+ async frame(age:number,seed=7919,isolateWarp=false,disableWarp=false){
   const f=await ensureFixture();demo='hit';graphics.useFixture=true;graphics.endReplay();graphics.clearDeposits();graphics.clearReplay();
   round.launch(10,f.face,seed);round.impact=10+round.duration;round.outcome=age>=0?'hit':null;
-  qaTime=round.impact+age;stain=age>=0;replayStarted=true;
+  qaTime=round.impact+age;stain=age>=0;replayStarted=true;graphics.qaIsolateWarp=isolateWarp;graphics.qaDisableWarp=disableWarp;
   graphics.draw(qaTime,round,f.face,f.points,false,stain,false);
   return {face:f.face,points:Array.from(f.points),effects:graphics.effectState};
  },

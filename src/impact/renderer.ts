@@ -64,6 +64,7 @@ export class ImpactRenderer {
  replay=false;replayTime=0;replayRate=.35;replayMemoryMB=0;renderMs=0;recordMs=0;gpuMs:number|null=null;
  width=960;height=540;quality='FX %100 · kamera tam çözünürlük';
  useFixture=false;
+ qaIsolateWarp=false;qaDisableWarp=false;
  get effectState(){return {warp:this.backgroundMaterial.uniforms.impact.value,stain:this.deposits.scene.visible?Math.min(1,this.deposits.count):0,layers:this.deposits.count,anchors:this.deposits.anchors,particles:this.fluid.particleCount};}
  get replayCaptureFps(){const a=this.replayFrames;return a.length>1?(a.length-1)/(a.at(-1)!.time-a[0].time):0;}
  constructor(canvas:HTMLCanvasElement,video:HTMLVideoElement){
@@ -80,6 +81,8 @@ export class ImpactRenderer {
   this.backgroundMaterial=new T.ShaderMaterial({uniforms:{cameraImage:{value:this.videoTexture},live:{value:0},impact:{value:0},aspect:{value:16/9},nearMiss:{value:0},time:{value:0},face:{value:new T.Vector4(.5,.5,.15,.22)},direction:{value:1},anchors:{value:Array.from({length:5},()=>new T.Vector2(.5,.5))}},vertexShader:vertex,fragmentShader:cameraFragment,depthTest:false,depthWrite:false,toneMapped:false});
   this.background.add(new T.Mesh(new T.PlaneGeometry(2,2),this.backgroundMaterial));this.copyScene.add(new T.Mesh(new T.PlaneGeometry(2,2),this.copyMaterial));this.overlay.add(new T.Mesh(new T.PlaneGeometry(2,2),this.overlayMaterial));
   this.allocateReplay();
+  // Compile each material before the first throw, so contact does not trigger shader compilation.
+  this.renderer.compile(this.scene,this.camera);this.renderer.compile(this.background,this.ortho);this.renderer.compile(this.overlay,this.ortho);this.renderer.compile(this.copyScene,this.ortho);this.deposits.warm(this.renderer,this.ortho);
  }
  setFixture(image:HTMLImageElement){this.fixture?.dispose();this.fixture=new T.Texture(image);this.fixture.colorSpace=T.NoColorSpace;this.fixture.needsUpdate=true;}
  private allocateReplay(){
@@ -111,7 +114,9 @@ export class ImpactRenderer {
   const elapsed=time-round.impact,hit=round.outcome==='hit'&&elapsed>=0,u=this.backgroundMaterial.uniforms;
   u.cameraImage.value=source;u.live.value=live?1:0;u.impact.value=face&&hit?impactEnvelope(elapsed):0;u.aspect.value=this.camera.aspect;u.nearMiss.value=round.outcome==='near'&&elapsed>=0?Math.exp(-elapsed*4):0;u.time.value=time;u.direction.value=round.seed%2?1:-1;
   if(face){u.face.value.set(face.x,1-face.y,face.rx,face.ry);[1,117,346,61,291].forEach((id,i)=>u.anchors.value[i].set(points?1-points[id*3]:face.x,points?1-points[id*3+1]:1-face.y));}
+  if(this.qaDisableWarp)u.impact.value=0;
   this.fluid.update(time,round,this.camera.aspect);this.deposits.update(points,face,time);
+  this.fluid.root.visible=!this.qaIsolateWarp;if(this.qaIsolateWarp)this.deposits.scene.visible=false;
   const gl=this.renderer.getContext() as WebGL2RenderingContext,ext=this.gpuExtension;
   if(ext&&this.pendingGpu&&gl.getQueryParameter(this.pendingGpu,gl.QUERY_RESULT_AVAILABLE)){if(!gl.getParameter(ext.GPU_DISJOINT_EXT))this.gpuMs=gl.getQueryParameter(this.pendingGpu,gl.QUERY_RESULT)/1e6;gl.deleteQuery(this.pendingGpu);this.pendingGpu=null;}
   const query=ext&&!this.pendingGpu?gl.createQuery():null;if(query)gl.beginQuery(ext.TIME_ELAPSED_EXT,query);
