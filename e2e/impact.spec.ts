@@ -31,6 +31,11 @@ test('GPU model, splat, audio scheduling, actual slow replay and near miss',asyn
   const metrics=await page.evaluate(()=>(window as any).__impactDiagnostics);
   await test.info().attach('software-gpu-measurement',{body:JSON.stringify(metrics,null,2),contentType:'application/json'});
   await writeFile('test-results/impact-measurements.json',JSON.stringify(metrics,null,2));
+  await page.locator('#demo-hit').click();
+  await expect.poll(()=>page.evaluate(()=>(window as any).__impactDiagnostics.effects.layers),{timeout:15000}).toBe(2);
+  await page.locator('#clean').click();
+  await expect.poll(()=>page.evaluate(()=>(window as any).__impactDiagnostics.effects.layers)).toBe(0);
+  await expect(page.locator('#replay')).toBeDisabled();
   expect(errors).toEqual([]);
 });
 test('deposits follow simulated moving landmarks and clear on request',async({page})=>{

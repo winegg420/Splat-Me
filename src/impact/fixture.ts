@@ -1,22 +1,13 @@
 import { faceShape } from './simulation';
-// Explicit camera-free preview: a generated fictional adult, detected once in its own worker.
+// Fixed generated portrait with landmarks captured once from our real MediaPipe worker.
+// This dataset is used only by the explicitly labeled camera-free preview.
 export async function loadFixture(){
- const image=new Image();image.src='/qa/face.png';await image.decode();
- const worker=new Worker('/tracker.js');
- try {
-  const points=await new Promise<Float32Array>((resolve,reject)=>{
-   const timeout=setTimeout(()=>reject(new Error('Test portresi modeli zaman aşımı.')),60000);
-   worker.onerror=e=>{clearTimeout(timeout);reject(new Error(e.message));};
-   worker.onmessage=async({data})=>{
-    if(data.type==='ready'){
-     try{const bitmap=await createImageBitmap(image,{resizeWidth:640,resizeHeight:360});worker.postMessage({type:'frame',bitmap,timestamp:1,width:640,height:360},[bitmap]);}catch(e){clearTimeout(timeout);reject(e);}
-    }
-    if(data.type==='error'){clearTimeout(timeout);reject(new Error(data.message));}
-    if(data.type==='result'){clearTimeout(timeout);data.points?resolve(data.points):reject(new Error('Test portresinde yüz bulunamadı.'));}
-   };
-   worker.postMessage({type:'init',landmarks:true,wasm:new URL('/vendor/wasm',location.href).href,model:new URL('/vendor/face_landmarker.task',location.href).href});
-  });
-  const face=faceShape(points);if(!face)throw new Error('Test portresi geometrisi geçersiz.');
-  return {image,points,face};
- }finally{worker.terminate();}
+ const image=new Image();image.src='/qa/face.png';
+ const [,response]=await Promise.all([image.decode(),fetch('/qa/face-landmarks.json')]);
+ if(!response.ok)throw new Error('Test portresi geometrisi yüklenemedi.');
+ const data:unknown=await response.json();
+ if(!Array.isArray(data)||data.length!==1434||!data.every(n=>typeof n==='number'&&Number.isFinite(n)))throw new Error('Test portresi geometrisi geçersiz.');
+ const points=new Float32Array(data),face=faceShape(points);
+ if(!face)throw new Error('Test portresi geometrisi geçersiz.');
+ return {image,points,face};
 }

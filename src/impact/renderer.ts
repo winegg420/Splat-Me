@@ -50,6 +50,7 @@ export class ImpactRenderer {
  private depositedAt=-Infinity;
  private scale=1;
  private slow=0;
+ private qualityLocked=false;
  private gpuExtension:any;
  private pendingGpu:WebGLQuery|null=null;
  replay=false;replayTime=0;replayRate=.35;replayMemoryMB=0;renderMs=0;recordMs=0;gpuMs:number|null=null;
@@ -77,6 +78,7 @@ export class ImpactRenderer {
   this.renderer.compile(this.scene,this.camera);this.renderer.compile(this.background,this.ortho);this.renderer.compile(this.overlay,this.ortho);this.renderer.compile(this.copyScene,this.ortho);this.deposits.warm(this.renderer,this.ortho);
  }
  setFixture(image:HTMLImageElement){this.fixture?.dispose();this.fixture=new T.Texture(image);this.fixture.colorSpace=T.NoColorSpace;this.fixture.needsUpdate=true;}
+ lockQAQuality(){this.qualityLocked=true;this.scale=.65;this.quality='QA sabit FX %65 · kamera tam çözünürlük';this.fx.setSize(Math.round(this.width*this.scale),Math.round(this.height*this.scale));}
  private allocateReplay(){
   const w=innerWidth<700?480:768,h=Math.round(w/(this.width/this.height));
   this.frames.forEach(f=>f.target.dispose());this.frames=Array.from({length:36},()=>({target:new T.WebGLRenderTarget(w,h,{depthBuffer:false}),time:-Infinity,face:null,points:null,live:false}));
@@ -120,7 +122,7 @@ export class ImpactRenderer {
   if(query){gl.endQuery(ext.TIME_ELAPSED_EXT);this.pendingGpu=query;}
   this.renderMs=performance.now()-started;
   if(Math.max(this.renderMs,this.gpuMs??0)>22)this.slow++;else this.slow=Math.max(0,this.slow-1);
-  if(this.slow>18&&this.scale>.45){this.scale=Math.max(.45,this.scale*.8);this.quality=`FX %${Math.round(this.scale*100)} · kamera tam çözünürlük`;this.fx.setSize(Math.round(this.width*this.scale),Math.round(this.height*this.scale));this.slow=0;}
+  if(!this.qualityLocked&&this.slow>18&&this.scale>.45){this.scale=Math.max(.45,this.scale*.8);this.quality=`FX %${Math.round(this.scale*100)} · kamera tam çözünürlük`;this.fx.setSize(Math.round(this.width*this.scale),Math.round(this.height*this.scale));this.slow=0;}
  }
  beginReplay(time:number){this.replayFrames=this.frames.filter(f=>Number.isFinite(f.time)&&f.time>=this.impactTime-.28&&f.time<=this.impactTime+.86).sort((a,b)=>a.time-b.time);if(this.replayFrames.length<5)return false;this.replay=true;this.replayStart=time;this.replayTime=this.replayFrames[0].time;return true;}
  endReplay(){this.replay=false;}

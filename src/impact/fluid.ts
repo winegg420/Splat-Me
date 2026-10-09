@@ -63,13 +63,13 @@ export class FluidScene {
   private world(point:{x:number;y:number},aspect:number){const h=2*6*Math.tan(T.MathUtils.degToRad(21));return this.origin.set((point.x-.5)*h*aspect,(.5-point.y)*h,0);}
   private path(drop:Drop,age:number,out:T.Vector3){const t=Math.max(0,age-drop.delay),drag=(1-Math.exp(-1.6*t))/1.6;return out.set(Math.cos(drop.angle)*drop.speed*drag,Math.sin(drop.angle)*drop.speed*drag+drop.up*t-2.9*t*t,drop.vz*drag);}
   update(time:number,round:Round,aspect:number){
-    this.time=time;const elapsed=time-round.impact,hit=round.outcome==='hit'&&elapsed>=0,flight=time-round.start,inFlight=flight>=0&&flight<round.duration&&(elapsed<0||!round.outcome);
+    this.time=time;const elapsed=time-round.impact,hit=round.outcome==='hit'&&elapsed>=0,flight=time-round.start,inFlight=flight>=0&&(round.outcome?elapsed<0:flight<round.duration);
     if(round.seed!==this.seed){this.seed=round.seed;this.dropsData=fluidSeed(round.seed);}
     const origin=this.world(round.target,aspect);
     this.body.visible=inFlight||round.start===-Infinity||hit&&elapsed<.19||(round.outcome==='near'||round.outcome==='miss')&&elapsed<.4;
     this.bodyMaterial.opacity=hit?Math.max(0,1-elapsed/.19):1;
-    if(inFlight){const t=flight/round.duration;this.body.position.set(origin.x+(1-t)*Math.sin(t*5)*1.2,origin.y+(1-t)*1.1,-16*(1-t));this.body.scale.setScalar(1.05);this.body.rotation.set(.4+flight*1.8,flight*5,Math.sin(flight*4)*.4);}
-    else if(hit){const squash=Math.min(1,elapsed/.085);this.body.position.copy(origin);this.body.scale.set(1.05*(1+squash*.85),1.05*(1+squash*.35),1.05*(1-squash*.91));this.body.rotation.set(.18,0,round.seed*.2);}
+    if(inFlight){const phase=Math.min(flight,round.duration),t=phase/round.duration;this.body.position.set(origin.x+(1-t)*Math.sin(t*5)*1.2,origin.y+(1-t)*1.1,-16*(1-t));this.body.scale.setScalar(1.05);this.body.rotation.set(.4+phase*1.8,phase*5,Math.sin(phase*4)*.4);}
+    else if(hit){const squash=Math.min(1,elapsed/.085);this.body.position.copy(origin);this.body.scale.set(1.05*(1+squash*.85),1.05*(1+squash*.35),1.05*(1-squash*.91));this.body.rotation.set(.4+round.duration*1.8,round.duration*5,Math.sin(round.duration*4)*.4);}
     else if(round.start===-Infinity){this.body.position.set(0,.05,0);this.body.scale.setScalar(1.5);this.body.rotation.set(.25,time*.35,-.32);}
     else {this.body.position.copy(origin);this.body.position.z=elapsed*18;}
     this.bodyTime.value=time;

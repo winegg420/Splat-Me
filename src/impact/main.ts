@@ -40,11 +40,12 @@ async function start(){
 function stop(){camera.stop();audio.stop();round.reset();stain=false;demo=null;running=false;graphics.useFixture=false;graphics.clearDeposits();graphics.clearReplay();button('start').disabled=false;button('stop').disabled=true;status('Kamera kapalı. Görüntü ve tekrar belleği temizlendi.');}
 function currentShape(){const face=camera.freshFace;return face?faceShape(face.points):null;}
 async function launch(preview:Outcome|null=null){
+  const audioReady=audio.unlock().catch(()=>{});
   if(preview){try{await ensureFixture();}catch(e){fixturePromise=null;status(String(e));return;}}
   const face=preview?demoFace:currentShape();
   if(!face||(!preview&&!camera.tracking))return;
   if(round.start!==-Infinity&&!round.outcome)return;
-  await audio.unlock().catch(()=>{});audio.stop();graphics.endReplay();
+  await audioReady;audio.stop();graphics.endReplay();
   demo=preview;graphics.useFixture=!!preview;replayStarted=false;replaySound=false;take++;graphics.clearReplay();qaTime=null;
   if(innerWidth<760)$('viewport').scrollIntoView({behavior:'smooth',block:'center'});
   round.launch(performance.now()/1000,face,take*7919);
@@ -54,7 +55,7 @@ async function launch(preview:Outcome|null=null){
 }
 function replay(){if(graphics.beginReplay(performance.now()/1000)){replayStarted=true;replaySound=false;audio.stop();}}
 button('start').onclick=()=>void start();button('stop').onclick=stop;button('throw').onclick=()=>void launch();
-button('clean').onclick=()=>{stain=false;graphics.clearDeposits();};button('demo-hit').onclick=()=>void launch('hit');button('demo-near').onclick=()=>void launch('near');button('replay').onclick=replay;
+button('clean').onclick=()=>{stain=false;graphics.clearDeposits();graphics.clearReplay();button('replay').disabled=true;status('Yüz ve önceki tekrar temizlendi.');};button('demo-hit').onclick=()=>void launch('hit');button('demo-near').onclick=()=>void launch('near');button('replay').onclick=replay;
 $('sound').onchange=()=>audio.setMuted(!checked('sound'));
 $('tracking-enabled').onchange=()=>{camera.tracking=checked('tracking-enabled');camera.face=null;};
 $('profile').onchange=()=>{if(running)void start();};$('device').onchange=()=>{if(running)void start();};
@@ -115,7 +116,7 @@ if(new URLSearchParams(location.search).has('qa'))(window as any).__impactQA={
  async frame(age:number,seed=7919,isolateWarp=false,disableWarp=false){
   const f=await ensureFixture();demo='hit';graphics.useFixture=true;graphics.endReplay();graphics.clearDeposits();graphics.clearReplay();
   round.launch(10,f.face,seed);round.impact=10+round.duration;round.outcome=age>=0?'hit':null;
-  qaTime=round.impact+age;stain=age>=0;replayStarted=true;graphics.qaIsolateWarp=isolateWarp;graphics.qaDisableWarp=disableWarp;
+  graphics.lockQAQuality();qaTime=round.impact+age;stain=age>=0;replayStarted=true;graphics.qaIsolateWarp=isolateWarp;graphics.qaDisableWarp=disableWarp;
   graphics.draw(qaTime,round,f.face,f.points,false,stain,false);
   return {face:f.face,points:Array.from(f.points),effects:graphics.effectState};
  },
