@@ -46,7 +46,7 @@ export class FluidScene {
   constructor(){
     const rng=random(72),noise=new Uint8Array(128*128*4);for(let i=0;i<noise.length;i+=4){const n=110+rng()*75;noise[i]=noise[i+1]=noise[i+2]=n;noise[i+3]=255;}
     this.noise=new T.DataTexture(noise,128,128);this.noise.wrapS=this.noise.wrapT=T.RepeatWrapping;this.noise.magFilter=T.LinearFilter;this.noise.needsUpdate=true;
-    this.material=new T.MeshPhysicalMaterial({color:0x623417,roughness:.39,metalness:0,clearcoat:.46,clearcoatRoughness:.27,envMapIntensity:.7,bumpMap:this.noise,bumpScale:.007});
+    this.material=new T.MeshPhysicalMaterial({color:0x48270f,roughness:.39,metalness:0,clearcoat:.46,clearcoatRoughness:.27,envMapIntensity:.7,bumpMap:this.noise,bumpScale:.007});
     this.bodyMaterial=this.material.clone();this.bodyMaterial.transparent=true;
     this.bodyMaterial.onBeforeCompile=shader=>{shader.uniforms.motionTime=this.bodyTime;shader.vertexShader='uniform float motionTime;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`vec3 transformed=position;transformed.x*=1.+.045*sin(motionTime*12.+position.y*8.);transformed.y+=.025*sin(motionTime*11.+position.x*12.);transformed.z*=1.+.05*cos(motionTime*10.+position.y*7.);`);};
     this.body=new T.Mesh(organicGeometry(),this.bodyMaterial);this.root.add(this.body);
@@ -67,7 +67,7 @@ export class FluidScene {
     if(round.seed!==this.seed){this.seed=round.seed;this.dropsData=fluidSeed(round.seed);}
     const origin=this.world(round.target,aspect);
     this.body.visible=inFlight||round.start===-Infinity||hit&&elapsed<.19||(round.outcome==='near'||round.outcome==='miss')&&elapsed<.4;
-    this.bodyMaterial.opacity=hit?Math.max(0,1-elapsed/.19):1;
+    this.bodyMaterial.opacity=hit?Math.max(0,1-Math.max(0,elapsed-.07)/.10):1;
     if(inFlight){const phase=Math.min(flight,round.duration),t=phase/round.duration;this.body.position.set(origin.x+(1-t)*Math.sin(t*5)*1.2,origin.y+(1-t)*1.1,-16*(1-t));this.body.scale.setScalar(1.05);this.body.rotation.set(.4+phase*1.8,phase*5,Math.sin(phase*4)*.4);}
     else if(hit){const squash=Math.min(1,elapsed/.085);this.body.position.copy(origin);this.body.scale.set(1.05*(1+squash*.85),1.05*(1+squash*.35),1.05*(1-squash*.91));this.body.rotation.set(.4+round.duration*1.8,round.duration*5,Math.sin(round.duration*4)*.4);}
     else if(round.start===-Infinity){this.body.position.set(0,.05,0);this.body.scale.setScalar(1.5);this.body.rotation.set(.25,time*.35,-.32);}
